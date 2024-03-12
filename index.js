@@ -168,3 +168,7 @@ function initClient() {
 
 
 }
+
+proxy.on('proxyReq', function (proxyReq, req, res, options) {
+    console.log('proxyReq', proxyReq);
+});
