@@ -24,7 +24,7 @@ jobs:
             context: .
             file: ./Dockerfile
             push: true
-            tags: ghcr.io/fhswf/openai-proxy:${{ github.sha }}
+            tags: ghcr.io/fhswf/openai-proxy:latest
 
 
 
