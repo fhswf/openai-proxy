@@ -1,10 +1,10 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
-
 import express from 'express';
 import proxy from 'express-http-proxy';
 import cookieParser from 'cookie-parser';
+import cors from 'cors';
 import { Issuer, Strategy } from 'openid-client';
 import jwt from 'jsonwebtoken';
 
@@ -13,9 +13,6 @@ import https from 'https';
 import jwksClient from 'jwks-rsa';
 
 const app = express();
-// const proxy = httpProxy.createProxyServer();
-
-
 
 const PREFIX = process.env.API_PREFIX || '/api';
 const CLIENT_ID = process.env.CLIENT_ID;
@@ -39,6 +36,9 @@ console.log('BASE_URL', BASE_URL);
 
 app.use(express.json());
 app.use(cookieParser());
+
+console.log('enabling cors on all requests');
+app.use(cors());
 
 let issuer;
 let client;
@@ -111,21 +111,6 @@ app.use((req, res, next) => {
     })
 
 });
-
-/*
-app.all(`${PREFIX}*`, (req, res) => {
-    const path = req.path.replace(PREFIX, '');
-    const target_url = `${API_URL}${path}`;
-    console.log('target_url', target_url);
-    const headers = [{}]
-    proxy.web(req, res,
-        { target: target_url, changeOrigin: true, ignorePath: true, headers: { 'Authorization': `Bearer ${API_KEY}` }, proxyTimeout: 60000, timeout: 60000 },
-        (err) => {
-            console.log('err', err);
-            res.status(500).json({ message: 'Error', err });
-        });
-});
-*/
 
 app.use(`${PREFIX}*`, proxy(API_URL, {
     https: true,
