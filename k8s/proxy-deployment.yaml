@@ -36,10 +36,47 @@ spec:
                 configMapKeyRef:
                   key: api.url
                   name: proxy-config
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: api.key
+                  name: proxy-secrets
+            - name: BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  key: api.base_url
+                  name: proxy-config
             - name: ISSUER
               valueFrom:
                 configMapKeyRef:
                   key: oidc.issuer
                   name: proxy-config
+            - name: CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  key: oidc.client_id
+                  name: proxy-secrets
+            - name: CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: oidc.client_secret
+                  name: proxy-secrets
+            - name: NODE_EXTRA_CA_CERTS
+              value: /etc/certs/geant.crt
+            - name: REDIRECT_URI
+              valueFrom:
+                configMapKeyRef:
+                  key: oidc.redirect_uri
+                  name: proxy-config
+          volumeMounts:
+            - name: ca-certs
+              mountPath: /etc/certs
+      volumes:
+        - name: ca-certs
+          configMap:
+            name: proxy-config
+            items:
+              - key: node.extra_ca_certs
+                path: geant.crt
       restartPolicy: Always
 status: {}

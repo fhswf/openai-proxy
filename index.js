@@ -24,6 +24,7 @@ const REDIRECT_URI = process.env.REDIRECT_URI || 'http://localhost:3000/callback
 const ISSUER = process.env.ISSUER;
 const API_URL = process.env.API_URL;
 const API_KEY = process.env.API_KEY;
+const BASE_URL = process.env.BASE_URL;
 
 // log config values to console
 console.log('Config values:');
@@ -34,7 +35,7 @@ console.log('REDIRECT_URI', REDIRECT_URI);
 console.log('ISSUER', ISSUER);
 console.log('API_URL', API_URL);
 console.log('API_KEY', API_KEY);
-
+console.log('BASE_URL', BASE_URL);
 
 app.use(express.json());
 app.use(cookieParser());
@@ -63,7 +64,7 @@ app.get('/callback', async (req, res) => {
     const token = tokenSet.id_token;//jwt.sign({ user }, 'your_secret_key');
 
     res.cookie('token', token);
-    res.redirect('/dashboard');
+    res.redirect(BASE_URL + '/dashboard');
 });
 
 app.get('/dashboard', (req, res) => {
@@ -77,8 +78,6 @@ app.get('/dashboard', (req, res) => {
     console.log(client.metadata)
     try {
         const decoded = jwt.decode(token)
-        console.log('decoded', decoded);
-        //const decoded = jwt.verify(token);
         res.send(decoded);
     }
     catch (err) {
