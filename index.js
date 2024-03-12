@@ -100,8 +100,6 @@ app.use((req, res, next) => {
         return res.status(401).json({ message: 'Token not found' });
     }
 
-
-
     jwt.verify(token, getSigningKey, { algorithms: ['RS256'] }, (err, decoded) => {
         if (err) {
             console.log('err', err);
@@ -130,15 +128,24 @@ app.all(`${PREFIX}*`, (req, res) => {
 */
 
 app.use(`${PREFIX}*`, proxy(API_URL, {
+    https: true,
     proxyReqPathResolver: function (req) {
-        const path = req.path.replace(PREFIX, '');
-        console.log('path', path);
+        const path = req.baseUrl.replace(PREFIX, '/v1');
+        console.log('path: ', req.baseUrl, path);
         return path;
     },
-    userResHeaderDecorator(headers, userReq, userRes, proxyReq, proxyRes) {
-        headers['Authorization'] = `Bearer ${API_KEY}`;
-        console.log('headers', headers);
-        return headers;
+    proxyErrorHandler: function (err, res, next) {
+        switch (err && err.code) {
+            case 'ECONNRESET': { return res.status(405).send('504 became 405'); }
+            case 'ECONNREFUSED': { return res.status(200).send('gotcher back'); }
+            default: { next(err); }
+        }
+    },
+    proxyReqOptDecorator: function (proxyReqOpts, srcReq) {
+        proxyReqOpts.headers['Authorization'] = `Bearer ${API_KEY}`;
+        console.log('headers', proxyReqOpts.headers);
+        console.log('body', srcReq.body);
+        return proxyReqOpts;
     }
 }));
 
@@ -184,10 +191,3 @@ function initClient() {
 
 }
 
-proxy.on('proxyReq', function (proxyReq, req, res, options) {
-    console.log('proxyReq', proxyReq);
-});
-
-proxy.on('proxyRes', function (proxyRes, req, res) {
-    console.log('proxyRes', proxyRes);
-});
