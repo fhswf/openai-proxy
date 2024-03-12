@@ -1,10 +1,6 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  annotations:
-    kompose.cmd: kompose convert
-    kompose.version: 1.26.0 (40646f47)
-  creationTimestamp: null
   labels:
     io.kompose.service: proxy
   name: proxy
@@ -14,13 +10,10 @@ spec:
   selector:
     matchLabels:
       io.kompose.service: proxy
-  strategy: {}
+  strategy:
+    type: RollingUpdate
   template:
     metadata:
-      annotations:
-        kompose.cmd: kompose convert
-        kompose.version: 1.26.0 (40646f47)
-      creationTimestamp: null
       labels:
         io.kompose.service: proxy
     spec:
@@ -29,7 +22,13 @@ spec:
           name: proxy
           ports:
             - containerPort: 3000
-          resources: {}
+          resources:
+            limits:
+              memory: "128Mi"
+              cpu: "500m"
+            requests:
+              memory: "64Mi"
+              cpu: "250m"
           env:
             - name: API_URL
               valueFrom:

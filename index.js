@@ -46,6 +46,7 @@ let getSigningKey;
 
 
 app.get('/login', async (req, res) => {
+    const params = req.query;
 
     const authorizationUrl = client.authorizationUrl({
         scope: 'openid profile email',
@@ -88,14 +89,19 @@ app.get('/dashboard', (req, res) => {
 
 
 app.use((req, res, next) => {
-    const token = req.headers.authorization || req.cookies.token;
+
+    let token = req.cookies.token;
+    if (req.headers.authorization) {
+        token = req.headers.authorization.split(' ')[1];
+    }
+    console.log('token', token);
 
     if (!token) {
         return res.status(401).json({ message: 'Token not found' });
     }
 
 
-    //const publicKey = getSigningKey({ kid: 'your_kid' })
+
     jwt.verify(token, getSigningKey, { algorithms: ['RS256'] }, (err, decoded) => {
         if (err) {
             console.log('err', err);

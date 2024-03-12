@@ -16,7 +16,6 @@ metadata:
   namespace: openai-proxy
 spec:
   entryPoints:
-    - web
     - web-secure
   routes:
     - kind: Rule

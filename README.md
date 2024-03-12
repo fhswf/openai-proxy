@@ -26,3 +26,10 @@ The following environment variables are used to configure the proxy server:
 | ISSUER              |                            | The issuer of the OIDC server                            |
 | REDIRECT_URI        |                            | The redirect URI of the OIDC server                      |
 | NODE_EXTRA_CA_CERTS |                            | The path to the CA certificate of the OIDC server        |
+
+
+## ToDos
+
+- [ ] Add accounting for the OpenAI API.
+- [ ] Add a dashboard with usage statistics.
+- [ ] Add a rate limiter.
