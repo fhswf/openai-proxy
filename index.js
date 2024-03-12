@@ -120,7 +120,7 @@ app.all(`${PREFIX}*`, (req, res) => {
     console.log('target_url', target_url);
     const headers = [{}]
     proxy.web(req, res,
-        { target: target_url, changeOrigin: true, ignorePath: true, headers: { 'Authorization': `Bearer ${API_KEY}` }, proxyTimeout: 10000, timeout: 10000 },
+        { target: target_url, changeOrigin: true, ignorePath: true, headers: { 'Authorization': `Bearer ${API_KEY}` }, proxyTimeout: 60000, timeout: 10000 },
         (err) => {
             console.log('err', err);
             res.status(500).json({ message: 'Error', err });
