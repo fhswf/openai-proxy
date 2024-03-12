@@ -30,5 +30,16 @@ spec:
           ports:
             - containerPort: 3000
           resources: {}
+          env:
+            - name: API_URL
+              valueFrom:
+                configMapKeyRef:
+                  key: api.url
+                  name: proxy-config
+            - name: ISSUER
+              valueFrom:
+                configMapKeyRef:
+                  key: oidc.issuer
+                  name: proxy-config
       restartPolicy: Always
 status: {}
