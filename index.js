@@ -3,7 +3,7 @@ dotenv.config();
 
 
 import express from 'express';
-import httpProxy from 'http-proxy';
+import proxy from 'express-http-proxy';
 import cookieParser from 'cookie-parser';
 import { Issuer, Strategy } from 'openid-client';
 import jwt from 'jsonwebtoken';
@@ -13,7 +13,7 @@ import https from 'https';
 import jwksClient from 'jwks-rsa';
 
 const app = express();
-const proxy = httpProxy.createProxyServer();
+// const proxy = httpProxy.createProxyServer();
 
 
 
@@ -114,6 +114,7 @@ app.use((req, res, next) => {
 
 });
 
+/*
 app.all(`${PREFIX}*`, (req, res) => {
     const path = req.path.replace(PREFIX, '');
     const target_url = `${API_URL}${path}`;
@@ -126,6 +127,20 @@ app.all(`${PREFIX}*`, (req, res) => {
             res.status(500).json({ message: 'Error', err });
         });
 });
+*/
+
+app.use(`${PREFIX}*`, proxy(API_URL, {
+    proxyReqPathResolver: function (req) {
+        const path = req.path.replace(PREFIX, '');
+        console.log('path', path);
+        return path;
+    },
+    userResHeaderDecorator(headers, userReq, userRes, proxyReq, proxyRes) {
+        headers['Authorization'] = `Bearer ${API_KEY}`;
+        console.log('headers', headers);
+        return headers;
+    }
+}));
 
 initClient()
     .then((_client) => {
