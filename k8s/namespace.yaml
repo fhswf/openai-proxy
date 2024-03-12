@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  creationTimestamp: "2024-03-12T08:34:32Z"
+  labels:
+    kubernetes.io/metadata.name: openai-proxy
+  name: openai-proxy
+spec:
+  finalizers:
+    - kubernetes
