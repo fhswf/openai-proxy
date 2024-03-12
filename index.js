@@ -25,6 +25,17 @@ const ISSUER = process.env.ISSUER;
 const API_URL = process.env.API_URL;
 const API_KEY = process.env.API_KEY;
 
+// log config values to console
+console.log('Config values:');
+console.log('PREFIX', PREFIX);
+console.log('CLIENT_ID', CLIENT_ID);
+console.log('CLIENT_SECRET', CLIENT_SECRET);
+console.log('REDIRECT_URI', REDIRECT_URI);
+console.log('ISSUER', ISSUER);
+console.log('API_URL', API_URL);
+console.log('API_KEY', API_KEY);
+
+
 app.use(express.json());
 app.use(cookieParser());
 
