@@ -125,6 +125,16 @@ app.get('/user', (req, res) => {
     res.send(req.user);
 });
 
+app.use((req, res, next) => {
+    res.on('data', (chunk) => {
+        console.log('chunk', chunk.toString());
+    })
+    res.on('end', () => {
+        console.log('end');
+    })
+    next()
+})
+
 app.use(`${PREFIX}*`,
     proxy(API_URL, {
         https: true,
@@ -146,8 +156,6 @@ app.use(`${PREFIX}*`,
             console.log('body', srcReq.body);
             return proxyReqOpts;
         }
-    }).on('data', (data) => {
-        console.log('Data:', data);
     })
 );
 
