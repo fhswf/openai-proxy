@@ -7,7 +7,7 @@ metadata:
 spec:
   stripPrefix:
     prefixes:
-      - /openai
+      - /openai/api
 ---
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
@@ -19,7 +19,7 @@ spec:
     - web-secure
   routes:
     - kind: Rule
-      match: Host(`login.ki.fh-swf.de`) && PathPrefix(`/openai`)
+      match: Host(`login.ki.fh-swf.de`) && PathPrefix(`/openai/api`)
       priority: 10
       services:
         - kind: Service
