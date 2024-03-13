@@ -88,6 +88,7 @@ app.get('/dashboard', (req, res) => {
 });
 
 app.get('/user', (req, res) => {
+    console.log('req.user', req.user);
     res.send(req.user);
 });
 
@@ -115,6 +116,7 @@ app.use((req, res, next) => {
             sub: decoded.sub,
             preferred_username: decoded.preferred_username
         }
+        console.log('req.user', req.user);
         next();
     })
 
