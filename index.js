@@ -65,7 +65,7 @@ app.get('/callback', async (req, res) => {
     const token = tokenSet.id_token;//jwt.sign({ user }, 'your_secret_key');
 
     res.cookie('token', token);
-    res.redirect(BASE_URL + '/dashboard');
+    res.redirect(BASE_URL);
 });
 
 app.get('/dashboard', (req, res) => {
@@ -91,7 +91,7 @@ app.get('/dashboard', (req, res) => {
 app.use((req, res, next) => {
 
     let token = req.cookies.token;
-    if (req.headers.authorization) {
+    if (!token && req.headers.authorization) {
         token = req.headers.authorization.split(' ')[1];
     }
     console.log('token', token);
