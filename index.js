@@ -87,6 +87,9 @@ app.get('/dashboard', (req, res) => {
     }
 });
 
+app.get('/user', (req, res) => {
+    res.send(req.user);
+});
 
 app.use((req, res, next) => {
 
@@ -106,7 +109,12 @@ app.use((req, res, next) => {
             return res.status(401).json({ message: 'Invalid token' });
         }
         console.log('decoded', decoded);
-        req.user = decoded.user;
+        req.user = {
+            name: decoded.name,
+            email: decoded.email,
+            sub: decoded.sub,
+            preferred_username: decoded.preferred_username
+        }
         next();
     })
 
