@@ -126,6 +126,7 @@ app.get('/user', (req, res) => {
 });
 
 app.use((req, res, next) => {
+    console.log('req.baseUrl', req.baseUrl);
     res.on('data', (chunk) => {
         console.log('chunk', chunk.toString());
     })
@@ -158,6 +159,17 @@ app.use(`${PREFIX}*`,
         }
     })
 );
+
+app.use((req, res, next) => {
+    console.log('req.baseUrl', req.baseUrl);
+    res.on('data', (chunk) => {
+        console.log('chunk', chunk.toString());
+    })
+    res.on('end', () => {
+        console.log('end');
+    })
+    next()
+})
 
 initClient()
     .then((_client) => {
