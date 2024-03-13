@@ -147,6 +147,7 @@ app.use(`${PREFIX}*`, proxy(API_URL, {
     },
     userResDecorator: function (proxyRes, proxyResData, userReq, userRes) {
         console.log('proxyRes:', proxyRes.headers);
+        console.log('proxyResData:', proxyResData.toString('utf8'));
         return proxyResData;
     }
 }));
