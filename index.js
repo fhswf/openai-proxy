@@ -125,32 +125,35 @@ app.get('/user', (req, res) => {
     res.send(req.user);
 });
 
-app.use(`${PREFIX}*`, proxy(API_URL, {
-    https: true,
-    proxyReqPathResolver: function (req) {
-        const path = req.baseUrl.replace(PREFIX, '/v1');
-        console.log('path: ', req.baseUrl, path);
-        return path;
-    },
-    proxyErrorHandler: function (err, res, next) {
-        switch (err && err.code) {
-            case 'ECONNRESET': { return res.status(405).send('504 became 405'); }
-            case 'ECONNREFUSED': { return res.status(200).send('gotcher back'); }
-            default: { next(err); }
+app.use(`${PREFIX}*`,
+    proxy(API_URL, {
+        https: true,
+        proxyReqPathResolver: function (req) {
+            const path = req.baseUrl.replace(PREFIX, '/v1');
+            console.log('path: ', req.baseUrl, path);
+            return path;
+        },
+        proxyErrorHandler: function (err, res, next) {
+            switch (err && err.code) {
+                case 'ECONNRESET': { return res.status(405).send('504 became 405'); }
+                case 'ECONNREFUSED': { return res.status(200).send('gotcher back'); }
+                default: { next(err); }
+            }
+        },
+        proxyReqOptDecorator: function (proxyReqOpts, srcReq) {
+            proxyReqOpts.headers['Authorization'] = `Bearer ${API_KEY}`;
+            console.log('headers', proxyReqOpts.headers);
+            console.log('body', srcReq.body);
+            return proxyReqOpts;
         }
-    },
-    proxyReqOptDecorator: function (proxyReqOpts, srcReq) {
-        proxyReqOpts.headers['Authorization'] = `Bearer ${API_KEY}`;
-        console.log('headers', proxyReqOpts.headers);
-        console.log('body', srcReq.body);
-        return proxyReqOpts;
-    },
-    userResDecorator: function (proxyRes, proxyResData, userReq, userRes) {
-        console.log('proxyRes:', proxyRes.headers);
-        console.log('proxyResData:', proxyResData.toString('utf8'));
-        return proxyResData;
-    }
-}));
+    }),
+    (req, res, next) => {
+        console.log('Res:', res.headers);
+        res.on('data', (data) => {
+            console.log('Data:', data);
+        })
+        next();
+    });
 
 initClient()
     .then((_client) => {
