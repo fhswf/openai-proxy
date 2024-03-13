@@ -30,6 +30,11 @@ spec:
               memory: "64Mi"
               cpu: "250m"
           env:
+            - name: API_PREFIX
+              valueFrom:
+                configMapKeyRef:
+                  key: api.prefix
+                  name: proxy-config
             - name: API_URL
               valueFrom:
                 configMapKeyRef:
