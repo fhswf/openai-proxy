@@ -87,11 +87,10 @@ app.get('/dashboard', (req, res) => {
     }
 });
 
-app.get('/user', (req, res) => {
-    console.log('req.user', req.user);
-    res.send(req.user);
-});
 
+/**
+ * Middleware to check if the user is authenticated
+ */
 app.use((req, res, next) => {
 
     let token = req.cookies.token;
@@ -120,6 +119,10 @@ app.use((req, res, next) => {
         next();
     })
 
+});
+
+app.get('/user', (req, res) => {
+    res.send(req.user);
 });
 
 app.use(`${PREFIX}*`, proxy(API_URL, {
