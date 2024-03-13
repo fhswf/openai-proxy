@@ -126,6 +126,13 @@ app.get('/user', (req, res) => {
 });
 
 app.use(`${PREFIX}*`,
+    (req, res, next) => {
+        console.log('Res:', res.headers);
+        res.on('data', (data) => {
+            console.log('Data:', data);
+        })
+        next();
+    },
     proxy(API_URL, {
         https: true,
         proxyReqPathResolver: function (req) {
@@ -146,14 +153,8 @@ app.use(`${PREFIX}*`,
             console.log('body', srcReq.body);
             return proxyReqOpts;
         }
-    }),
-    (req, res, next) => {
-        console.log('Res:', res.headers);
-        res.on('data', (data) => {
-            console.log('Data:', data);
-        })
-        next();
-    });
+    })
+);
 
 initClient()
     .then((_client) => {
