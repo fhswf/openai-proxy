@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY package.json /app
 COPY package-lock.json /app
-COPY index.js /app
+COPY lib /app/lib
 
 RUN npm install
 

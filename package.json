@@ -2,11 +2,11 @@
   "name": "openai-proxy",
   "version": "1.0.0",
   "description": "Proxy for the OpenAI API",
-  "main": "index.js",
+  "main": "lib/index.js",
   "type": "module",
   "scripts": {
-    "start": "node index.js",
-    "dev": "NODE_EXTRA_CA_CERTS=certs/ca-certificates.crt node --watch index.js",
+    "start": "node lib/index.js",
+    "dev": "NODE_EXTRA_CA_CERTS=certs/ca-certificates.crt node --watch lib/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Christian Gawron",
@@ -20,6 +20,7 @@
     "http-proxy": "^1.18.1",
     "jsonwebtoken": "^9.0.2",
     "jwks-rsa": "^3.1.0",
+    "mongodb": "^6.5.0",
     "openid-client": "^5.6.5"
   }
 }

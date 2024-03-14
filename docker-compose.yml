@@ -8,3 +8,20 @@ services:
       dockerfile: Dockerfile
     ports:
       - 3000
+    command: npm run dev
+    env_file:
+      - .env
+    develop:
+      watch:
+        - action: sync
+          path: lib
+          target: /app/lib
+          ignore:
+            - node_modules/
+        - action: rebuild
+          path: package.json
+
+  mongodb:
+    image: mongo:latest
+    ports:
+      - 27017
