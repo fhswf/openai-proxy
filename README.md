@@ -1,4 +1,4 @@
-![Deployment Status](https://login.ki.fh-swf.de/argocd/api/badge?name=openai-proxy&revision=true)
+<img src="https://login.ki.fh-swf.de/argocd/api/badge?name=openai-proxy&revision=true">
 
 # Proxy server for the OpenAI API
 This proxy uses an OIDC server to authenticate users and forwards requests 
