@@ -125,16 +125,32 @@ app.get('/user', (req, res) => {
     res.send(req.user);
 });
 
-app.use((req, res, next) => {
-    console.log('req.baseUrl', req.baseUrl);
-    res.on('data', (chunk) => {
-        console.log('chunk', chunk.toString());
-    })
-    res.on('end', () => {
-        console.log('end');
-    })
-    next()
-})
+function logResponseBody(req, res, next) {
+    var oldWrite = res.write,
+        oldEnd = res.end;
+
+    var chunks = [];
+
+    res.write = function (chunk) {
+        chunks.push(new Buffer.from(chunk));
+
+        oldWrite.apply(res, arguments);
+    };
+
+    res.end = function (chunk) {
+        if (chunk)
+            chunks.push(new Buffer.from(chunk));
+
+        var body = Buffer.concat(chunks).toString('utf8');
+        console.log(req.path, body);
+
+        oldEnd.apply(res, arguments);
+    };
+
+    next();
+}
+
+app.use(logResponseBody);
 
 app.use(`${PREFIX}*`,
     proxy(API_URL, {
@@ -160,16 +176,7 @@ app.use(`${PREFIX}*`,
     })
 );
 
-app.use((req, res, next) => {
-    console.log('req.baseUrl', req.baseUrl);
-    res.on('data', (chunk) => {
-        console.log('chunk', chunk.toString());
-    })
-    res.on('end', () => {
-        console.log('end');
-    })
-    next()
-})
+
 
 initClient()
     .then((_client) => {
