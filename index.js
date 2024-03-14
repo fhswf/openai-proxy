@@ -147,6 +147,11 @@ function logResponseBody(req, res, next) {
         oldEnd.apply(res, arguments);
     };
 
+    res.on('finish', () => {
+        console.log(`request url = ${req.originalUrl}`);
+        console.log("headers: ", res.getHeaders());
+    });
+
     next();
 }
 
