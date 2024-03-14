@@ -8,4 +8,4 @@ COPY lib /app/lib
 
 RUN npm install
 
-CMD ["node", "index.js"]
+CMD ["node", "lib/index.js"]
