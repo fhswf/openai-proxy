@@ -23,6 +23,9 @@ spec:
           name: mongodb
           ports:
             - containerPort: 27017
+          volumeMounts:
+            - mountPath: /data/db
+              name: data
           resources:
             limits:
               memory: 128Mi
@@ -30,3 +33,53 @@ spec:
             requests:
               memory: 64Mi
               cpu: 250m
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: mongodb-pvc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongodb-pvc
+  namespace: openai-proxy
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: ceph-block
+  volumeName: mongodb-pv
+  volumeMode: Filesystem
+  selector:
+    matchLabels:
+      io.kubernetes.service: mongodb
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: mongodb-pv
+  namespace: openai-proxy
+  annotations:
+    volume.beta.kubernetes.io/storage-provisioner: rook-ceph.rbd.csi.ceph.com
+    volume.kubernetes.io/storage-provisioner: rook-ceph.rbd.csi.ceph.com
+spec:
+  accessModes:
+    - ReadWriteOnce
+  capacity:
+    storage: 5Gi
+  claimRef:
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    name: mongodb-pvc
+    namespace: openai-proxy
+  csi:
+    driver: rook-ceph.rbd.csi.ceph.com
+    fsType: ext4
+    volumeHandle: mongodb-pv
+    volumeAttributes:
+      pool: ceph-blockpool
+      clusterID: rook-ceph
+      imageFormat: "2"
+      imageFeatures: layering
