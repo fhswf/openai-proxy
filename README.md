@@ -1,9 +1,13 @@
+![Deployment Status](https://login.ki.fh-swf.de/argocd/api/badge?name=openai-proxy&revision=true)
+
 # Proxy server for the OpenAI API
 This proxy uses an OIDC server to authenticate users and forwards requests 
 to the OpenAI API. 
 The proxy adds an API key to authenticate requests.
 
 This proxying enables university members to use the OpenAI API without revealing person related data. 
+
+At FH Südwestfalen, the proxy is available at [login.ki.fh-swf.de/openai/ui/index.html](https://login.ki.fh-swf.de/openai/ui/index.html).
 
 ## Usage
 
