@@ -18,3 +18,17 @@ spec:
     io.kompose.service: proxy
 status:
   loadBalancer: {}
+---
+apiVersion: apps/v1
+kind: Service
+metadata:
+  name: mongo
+  namespace: openai-proxy
+spec:
+  ports:
+    - name: "27017"
+      port: 27017
+      targetPort: 27017
+  selector:
+    io.kompose.service: mongo
+  type: ClusterIP
