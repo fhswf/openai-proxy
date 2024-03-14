@@ -23,9 +23,9 @@ spec:
           name: mongodb
           ports:
             - containerPort: 27017
-          volumeMounts:
-            - mountPath: /data/db
-              name: data
+          #volumeMounts:
+          #  - mountPath: /data/db
+          #    name: data
           resources:
             limits:
               memory: 128Mi
@@ -33,10 +33,10 @@ spec:
             requests:
               memory: 64Mi
               cpu: 250m
-      volumes:
-        - name: data
-          persistentVolumeClaim:
-            claimName: mongodb-pvc
+      #volumes:
+      #  - name: data
+      #    persistentVolumeClaim:
+      #      claimName: mongodb-pvc
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -75,11 +75,22 @@ spec:
     name: mongodb-pvc
     namespace: openai-proxy
   csi:
+    controllerExpandSecretRef:
+      name: rook-csi-rbd-provisioner
+      namespace: rook-ceph-cluster
     driver: rook-ceph.rbd.csi.ceph.com
     fsType: ext4
     volumeHandle: mongodb-pv
+    nodeStageSecretRef:
+      name: rook-csi-rbd-node
+      namespace: rook-ceph-cluster
     volumeAttributes:
       pool: ceph-blockpool
       clusterID: rook-ceph
       imageFormat: "2"
       imageFeatures: layering
+      journalPool: ceph-blockpool
+      storage.kubernetes.io/csiProvisionerIdentity: 1709285129049-5540-rook-ceph.rbd.csi.ceph.com
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ceph-block
+  volumeMode: Filesystem
