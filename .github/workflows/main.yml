@@ -24,7 +24,13 @@ jobs:
             context: .
             file: ./Dockerfile
             push: true
-            tags: ghcr.io/fhswf/openai-proxy:latest
+            tags: ghcr.io/fhswf/openai-proxy:latest, ghcr.io/fhswf/openai-proxy:${{ github.sha }}
 
-
-
+        - name: Update yaml
+          uses: fjogeleit/yaml-update-action@main
+          with:
+            valueFile: 'k8s/deployment.yaml'
+            propertyPath: 'spec.template.spec.containers[0].image'
+            value: ghcr.io/fhswf/openai-proxy:${{ github.sha }}
+            branch: main
+            message: 'Update image to ${{ github.sha }}'
