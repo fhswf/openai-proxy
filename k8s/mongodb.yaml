@@ -1,3 +1,21 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongodb-pvc
+  namespace: openai-proxy
+  labels:
+    io.kubernetes.service: mongodb
+    io.kubernetes.part-of: openai-proxy
+    app: openai-proxy
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: ceph-block
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -10,22 +28,25 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      io.kompose.service: mongodb
+      app: openai-proxy
+      tier: mongodb
   strategy:
-    type: RollingUpdate
+    type: Recreate
   template:
     metadata:
       labels:
         io.kompose.service: mongodb
+        app: openai-proxy
+        tier: mongodb
     spec:
       containers:
         - image: mongo:4.4
           name: mongodb
           ports:
             - containerPort: 27017
-          #volumeMounts:
-          #  - mountPath: /data/db
-          #    name: data
+          volumeMounts:
+            - mountPath: /data/db
+              name: data
           resources:
             limits:
               memory: 128Mi
@@ -33,64 +54,7 @@ spec:
             requests:
               memory: 64Mi
               cpu: 250m
-      #volumes:
-      #  - name: data
-      #    persistentVolumeClaim:
-      #      claimName: mongodb-pvc
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: mongodb-pvc
-  namespace: openai-proxy
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 5Gi
-  storageClassName: ceph-block
-  volumeName: mongodb-pv
-  volumeMode: Filesystem
-  selector:
-    matchLabels:
-      io.kubernetes.service: mongodb
----
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: mongodb-pv
-  namespace: openai-proxy
-  annotations:
-    volume.beta.kubernetes.io/storage-provisioner: rook-ceph.rbd.csi.ceph.com
-    volume.kubernetes.io/storage-provisioner: rook-ceph.rbd.csi.ceph.com
-spec:
-  accessModes:
-    - ReadWriteOnce
-  capacity:
-    storage: 5Gi
-  claimRef:
-    apiVersion: v1
-    kind: PersistentVolumeClaim
-    name: mongodb-pvc
-    namespace: openai-proxy
-  csi:
-    controllerExpandSecretRef:
-      name: rook-csi-rbd-provisioner
-      namespace: rook-ceph-cluster
-    driver: rook-ceph.rbd.csi.ceph.com
-    fsType: ext4
-    volumeHandle: mongodb-pv
-    nodeStageSecretRef:
-      name: rook-csi-rbd-node
-      namespace: rook-ceph-cluster
-    volumeAttributes:
-      pool: ceph-blockpool
-      clusterID: rook-ceph
-      imageFormat: "2"
-      imageFeatures: layering
-      journalPool: ceph-blockpool
-      storage.kubernetes.io/csiProvisionerIdentity: 1709285129049-5540-rook-ceph.rbd.csi.ceph.com
-  persistentVolumeReclaimPolicy: Retain
-  storageClassName: ceph-block
-  volumeMode: Filesystem
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: mongodb-pvc
