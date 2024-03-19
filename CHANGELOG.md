@@ -1,3 +1,10 @@
+## [0.1.8](https://github.com/fhswf/openai-proxy/compare/v0.1.7...v0.1.8) (2024-03-19)
+
+
+### Bug Fixes
+
+* config redirect_uris ([aa25429](https://github.com/fhswf/openai-proxy/commit/aa25429c4a98c34246511d99a50626016c792c3f))
+
 ## [0.1.7](https://github.com/fhswf/openai-proxy/compare/v0.1.6...v0.1.7) (2024-03-19)
 
 
