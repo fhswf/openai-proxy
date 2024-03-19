@@ -10,9 +10,19 @@ spec:
       - /openai/api
 ---
 apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  namespace: openai-proxy
+  name: api-stripprefix
+spec:
+  stripPrefix:
+    prefixes:
+      - /api
+---
+apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
-  name: proxy
+  name: proxy-login.ki.fh-swf.de
   namespace: openai-proxy
 spec:
   entryPoints:
@@ -28,5 +38,27 @@ spec:
           port: 3000
       middlewares:
         - name: openai-stripprefix
+  tls:
+    certResolver: default
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: proxy-openai.ki.fh-swf.de
+  namespace: openai-proxy
+spec:
+  entryPoints:
+    - web-secure
+  routes:
+    - kind: Rule
+      match: Host(`openai.ki.fh-swf.de`) && PathPrefix(`/api`)
+      priority: 10
+      services:
+        - kind: Service
+          name: proxy
+          namespace: openai-proxy
+          port: 3000
+      middlewares:
+        - name: api-stripprefix
   tls:
     certResolver: default
