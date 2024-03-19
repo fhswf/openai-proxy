@@ -1,6 +1,6 @@
 {
   "name": "openai-proxy",
-  "version": "1.0.0",
+  "version": "0.1.2",
   "description": "Proxy for the OpenAI API",
   "private": true,
   "main": "lib/index.js",
