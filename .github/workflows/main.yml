@@ -52,6 +52,8 @@ jobs:
         # list of Docker images to use as base name for tags
         images: |
           ghcr.io/fhswf/openai-proxy          
+        flavor: |
+          lasted=true
         # generate Docker tags based on the following events/attributes
         tags: |
           type=sha,prefix=sha-,format=short,enable=true,priority=1100
