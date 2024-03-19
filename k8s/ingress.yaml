@@ -52,7 +52,7 @@ spec:
   routes:
     - kind: Rule
       match: Host(`openai.ki.fh-swf.de`) && PathPrefix(`/api`)
-      priority: 10
+      priority: 100
       services:
         - kind: Service
           name: proxy
