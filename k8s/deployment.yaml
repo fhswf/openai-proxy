@@ -68,10 +68,10 @@ spec:
                   name: proxy-secrets
             - name: NODE_EXTRA_CA_CERTS
               value: /etc/certs/geant.crt
-            - name: REDIRECT_URI
+            - name: REDIRECT_URIS
               valueFrom:
                 configMapKeyRef:
-                  key: oidc.redirect_uri
+                  key: oidc.redirect_uris
                   name: proxy-config
           volumeMounts:
             - name: ca-certs
