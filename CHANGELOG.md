@@ -1,3 +1,10 @@
+# [0.2.0](https://github.com/fhswf/openai-proxy/compare/v0.1.8...v0.2.0) (2024-03-20)
+
+
+### Features
+
+* set return url ([6cf1ad1](https://github.com/fhswf/openai-proxy/commit/6cf1ad12d56ca668a2beb9b5f10556709cf3359f))
+
 ## [0.1.8](https://github.com/fhswf/openai-proxy/compare/v0.1.7...v0.1.8) (2024-03-19)
 
 
