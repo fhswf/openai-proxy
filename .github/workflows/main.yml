@@ -53,7 +53,7 @@ jobs:
         images: |
           ghcr.io/fhswf/openai-proxy          
         flavor: |
-          lasted=true
+          latest=true
         # generate Docker tags based on the following events/attributes
         tags: |
           type=sha,prefix=sha-,format=short,enable=true,priority=1100
