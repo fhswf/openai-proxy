@@ -1,3 +1,10 @@
+## [0.2.3](https://github.com/fhswf/openai-proxy/compare/v0.2.2...v0.2.3) (2024-03-20)
+
+
+### Bug Fixes
+
+* set token cookie as secure ([e894587](https://github.com/fhswf/openai-proxy/commit/e8945871ab3023e807051e6e224e8785020fe883))
+
 ## [0.2.2](https://github.com/fhswf/openai-proxy/compare/v0.2.1...v0.2.2) (2024-03-20)
 
 
