@@ -1,3 +1,10 @@
+## [0.2.1](https://github.com/fhswf/openai-proxy/compare/v0.2.0...v0.2.1) (2024-03-20)
+
+
+### Bug Fixes
+
+* cookies & cors ([89855c6](https://github.com/fhswf/openai-proxy/commit/89855c63bfef81efecf9f83a6b87adb9dc5afd41))
+
 # [0.2.0](https://github.com/fhswf/openai-proxy/compare/v0.1.8...v0.2.0) (2024-03-20)
 
 
