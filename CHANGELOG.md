@@ -1,3 +1,10 @@
+## [0.4.1](https://github.com/fhswf/openai-proxy/compare/v0.4.0...v0.4.1) (2024-03-21)
+
+
+### Bug Fixes
+
+* error handling in logout ([b38df41](https://github.com/fhswf/openai-proxy/commit/b38df419db61f3df3f35fa65b71553b7d3418a64))
+
 # [0.4.0](https://github.com/fhswf/openai-proxy/compare/v0.3.2...v0.4.0) (2024-03-21)
 
 
