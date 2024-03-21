@@ -1,3 +1,10 @@
+## [0.3.1](https://github.com/fhswf/openai-proxy/compare/v0.3.0...v0.3.1) (2024-03-21)
+
+
+### Bug Fixes
+
+* **db:** typo ([099d2d3](https://github.com/fhswf/openai-proxy/commit/099d2d3f98c231c40832528856491fbaae97976b))
+
 # [0.3.0](https://github.com/fhswf/openai-proxy/compare/v0.2.3...v0.3.0) (2024-03-21)
 
 
