@@ -86,10 +86,15 @@ app.get('/logout', (req, res) => {
     }
     logger.debug('token', token);
     if (token) {
-        client.revoke(token, 'access_token');
-        res.clearCookie('token');
+        const endSessionUrl = client.endSessionUrl({
+            post_logout_redirect_uri: BASE_URL,
+            id_token_hint: token
+        });
+        res.redirect(endSessionUrl)
     }
-    res.send(204)
+    else {
+        res.redirect(BASE_URL);
+    }
 });
 
 app.get('/callback', async (req, res) => {
