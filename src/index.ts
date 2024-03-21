@@ -90,6 +90,7 @@ app.get('/logout', (req, res) => {
         const endSessionUrl = client.endSessionUrl({
             post_logout_redirect_uri: POST_LOGOUT_REDIRECT_URI,
             client_id: CLIENT_ID,
+            id_token_hint: token
         });
         res.redirect(endSessionUrl)
     }
