@@ -1,3 +1,10 @@
+# [0.3.0](https://github.com/fhswf/openai-proxy/compare/v0.2.3...v0.3.0) (2024-03-21)
+
+
+### Features
+
+* **accounting:** count number of requests per user ([f831bc9](https://github.com/fhswf/openai-proxy/commit/f831bc92fc34d200a8ffaec5c103d878afa995d2))
+
 ## [0.2.3](https://github.com/fhswf/openai-proxy/compare/v0.2.2...v0.2.3) (2024-03-20)
 
 
