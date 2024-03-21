@@ -85,9 +85,11 @@ app.get('/logout', (req, res) => {
         token = req.headers.authorization.split(' ')[1];
     }
     logger.debug('token', token);
-
-    client.revoke(token, 'access_token');
-    res.clearCookie('token');
+    if (token) {
+        client.revoke(token, 'access_token');
+        res.clearCookie('token');
+    }
+    res.send(204)
 });
 
 app.get('/callback', async (req, res) => {
