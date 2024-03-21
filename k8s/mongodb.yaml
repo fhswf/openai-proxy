@@ -40,7 +40,7 @@ spec:
         tier: mongodb
     spec:
       containers:
-        - image: mongo:4.4
+        - image: mongo:6.0.0
           name: mongodb
           ports:
             - containerPort: 27017
