@@ -1,0 +1,12 @@
+{
+    "compilerOptions": {
+        "outDir": "./dist/",
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+        "target": "ES2022",
+        "types": [
+            "node"
+        ],
+        "allowSyntheticDefaultImports": true
+    }
+}

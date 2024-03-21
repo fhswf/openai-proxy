@@ -111,7 +111,6 @@ app.get('/dashboard', (req, res) => {
     const promise = countRequests();
     logger.debug('promise', promise);
     promise
-        .then(cursor => cursor.toArray())
         .then(requests => {
             res.json(requests);
         })
@@ -143,37 +142,37 @@ app.use((req, res, next) => {
             return res.status(401).json({ message: 'Invalid token' });
         }
         logger.debug('decoded', decoded);
-        req.user = {
-            name: decoded.name,
-            email: decoded.email,
+        req['user'] = {
+            name: decoded['name'],
+            email: decoded['email'],
             sub: decoded.sub,
-            preferred_username: decoded.preferred_username
+            preferred_username: decoded['preferred_username']
         }
-        logger.debug('req.user', req.user);
+        logger.debug('req.user', req['user']);
         next();
     })
 
 });
 
 app.get('/user', (req, res) => {
-    res.send(req.user);
+    res.send(req['user']);
 });
 
 function logResponseBody(req, res, next) {
-    var oldWrite = res.write,
-        oldEnd = res.end;
+    let oldWrite = res.write;
+    let oldEnd = res.end;
 
-    var chunks = [];
+    let chunks = [];
 
     res.write = function (chunk) {
-        chunks.push(new Buffer.from(chunk));
+        chunks.push(Buffer.from(chunk));
 
         oldWrite.apply(res, arguments);
     };
 
     res.end = function (chunk) {
         if (chunk)
-            chunks.push(new Buffer.from(chunk));
+            chunks.push(Buffer.from(chunk));
 
         var body = Buffer.concat(chunks).toString('utf8');
         logger.debug(req.path, body);

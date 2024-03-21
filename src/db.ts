@@ -1,10 +1,10 @@
-import { MongoClient } from 'mongodb';
+import { MongoClient, Db } from 'mongodb';
 
 const MONGO_URL = process.env.MONGO_URL || 'mongodb://mongodb:27017';
 
-const mongo = new MongoClient(MONGO_URL, { useUnifiedTopology: true });
+const mongo = new MongoClient(MONGO_URL);
 
-let db;
+let db: Db | null = null;
 
 export async function mongo_connect() {
     await mongo.connect();
@@ -17,7 +17,7 @@ export async function mongo_connect() {
  * @param {*} request 
  */
 export function logRequest(request) {
-    db.collection('requests').insertOne(request);
+    db?.collection('requests').insertOne(request);
 }
 
 /**
@@ -26,7 +26,7 @@ export function logRequest(request) {
  
  */
 export function countRequests() {
-    return db.collection('requests')
+    return db?.collection('requests')
         .aggregate([
             {
                 $group: {
@@ -34,5 +34,6 @@ export function countRequests() {
                     count: { $count: {} }
                 }
             }
-        ]);
+        ])
+        .toArray();
 } 

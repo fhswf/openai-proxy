@@ -11,12 +11,12 @@ export function initClient() {
             //console.log(issuer)
             console.log(issuer.jwks_uri);
             let _client = jwksClient({
-                jwksUri: issuer.jwks_uri
+                jwksUri: issuer.jwks_uri.toString()
             });
             console.log(_client);
             getSigningKey = (header, callback) => {
                 _client.getSigningKey(header.kid, function (err, key) {
-                    let signingKey = key.publicKey || key.rsaPublicKey;
+                    let signingKey = key.getPublicKey();
                     callback(null, signingKey);
                 });
             };
