@@ -73,6 +73,11 @@ spec:
                 configMapKeyRef:
                   key: oidc.redirect_uris
                   name: proxy-config
+            - name: POST_LOGOUT_REDIRECT_URI
+              valueFrom:
+                configMapKeyRef:
+                  key: oidc.post_logout_redirect_uri
+                  name: proxy-config
           volumeMounts:
             - name: ca-certs
               mountPath: /etc/certs
