@@ -1,3 +1,10 @@
+## [0.3.2](https://github.com/fhswf/openai-proxy/compare/v0.3.1...v0.3.2) (2024-03-21)
+
+
+### Bug Fixes
+
+* **db:** getting the collection ([b87397f](https://github.com/fhswf/openai-proxy/commit/b87397febf119d6d61e72b8a03f8ad13e5274a7a))
+
 ## [0.3.1](https://github.com/fhswf/openai-proxy/compare/v0.3.0...v0.3.1) (2024-03-21)
 
 
