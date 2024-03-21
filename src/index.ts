@@ -33,6 +33,7 @@ const PREFIX = process.env.API_PREFIX || '/api';
 const API_URL = process.env.API_URL;
 const API_KEY = process.env.API_KEY;
 const BASE_URL = process.env.BASE_URL;
+const POST_LOGOUT_REDIRECT_URI = process.env.POST_LOGOUT_REDIRECT_URI || "https://ki.fh-swf.de";
 
 
 // log config values to console
@@ -87,8 +88,8 @@ app.get('/logout', (req, res) => {
     logger.debug('token', token);
     if (token) {
         const endSessionUrl = client.endSessionUrl({
-            post_logout_redirect_uri: BASE_URL,
-            id_token_hint: token
+            post_logout_redirect_uri: POST_LOGOUT_REDIRECT_URI,
+            client_id: CLIENT_ID,
         });
         res.redirect(endSessionUrl)
     }
