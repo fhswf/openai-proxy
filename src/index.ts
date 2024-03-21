@@ -57,6 +57,8 @@ app.use(cors({ origin: "http://localhost:5173", credentials: true }));
 let client;
 let redirect_uri;
 
+
+
 app.get('/login', async (req, res) => {
     const params = req.query;
     logger.debug('req.headers', req.headers);
@@ -75,6 +77,17 @@ app.get('/login', async (req, res) => {
 
     res.cookie("return_url", req.query.return_url || req.headers.referer, { maxAge: 120000, httpOnly: true, secure: true, sameSite: 'none' });
     res.redirect(authorizationUrl);
+});
+
+app.get('/logout', (req, res) => {
+    let token = req.cookies.token;
+    if (!token && req.headers.authorization) {
+        token = req.headers.authorization.split(' ')[1];
+    }
+    logger.debug('token', token);
+
+    client.revoke(token, 'access_token');
+    res.clearCookie('token');
 });
 
 app.get('/callback', async (req, res) => {
