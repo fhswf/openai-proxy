@@ -1,3 +1,10 @@
+## [0.4.5](https://github.com/fhswf/openai-proxy/compare/v0.4.4...v0.4.5) (2024-03-22)
+
+
+### Bug Fixes
+
+* **build:** security issues ([08b10bf](https://github.com/fhswf/openai-proxy/commit/08b10bf3c2a5cdc4ee2774f21346fcbc93919708))
+
 ## [0.4.4](https://github.com/fhswf/openai-proxy/compare/v0.4.3...v0.4.4) (2024-03-21)
 
 
