@@ -1,3 +1,10 @@
+# [0.5.0](https://github.com/fhswf/openai-proxy/compare/v0.4.5...v0.5.0) (2024-03-22)
+
+
+### Features
+
+* group affiliations by scope ([9e52168](https://github.com/fhswf/openai-proxy/commit/9e52168636ad12717823baafd71ccee85b63b5ce))
+
 ## [0.4.5](https://github.com/fhswf/openai-proxy/compare/v0.4.4...v0.4.5) (2024-03-22)
 
 
