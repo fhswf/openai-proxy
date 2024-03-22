@@ -1,3 +1,10 @@
+## [0.5.3](https://github.com/fhswf/openai-proxy/compare/v0.5.2...v0.5.3) (2024-03-22)
+
+
+### Bug Fixes
+
+* **user:** grouping affiliations ([eee0d52](https://github.com/fhswf/openai-proxy/commit/eee0d520e3dac336ea621469896838add51fda4c))
+
 ## [0.5.2](https://github.com/fhswf/openai-proxy/compare/v0.5.1...v0.5.2) (2024-03-22)
 
 
