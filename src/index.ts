@@ -160,14 +160,20 @@ app.use((req, res, next) => {
         logger.debug('decoded', user);
 
         try {
-            user['scopedAffiliations'] = Object.groupBy(
+            let affiliations;
+            let raw: Object = Object.groupBy(
                 user['affiliation']
                     .map((affiliation) => {
                         const [role, org] = affiliation.split('@');
                         return { role, org }
                     }),
                 (affiliation) => affiliation['org']
-            );
+            )
+            Object.entries(raw)
+                .forEach(([org, roles]) => {
+                    affiliations[org] = roles.map(role => role['role']);
+                });
+            user['affiliations'] = affiliations;
         } catch (err) {
             logger.error('Error grouping affiliations: ', err);
         }
