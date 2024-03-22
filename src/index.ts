@@ -160,7 +160,7 @@ app.use((req, res, next) => {
         logger.debug('decoded', user);
 
         try {
-            let affiliations;
+            let affiliations = {};
             let raw: Object = Object.groupBy(
                 user['affiliation']
                     .map((affiliation) => {
