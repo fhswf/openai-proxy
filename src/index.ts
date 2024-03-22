@@ -184,7 +184,7 @@ app.use((req, res, next) => {
             email: user['email'],
             sub: user.sub,
             preferred_username: user['preferred_username'],
-            affiliations: user['scopedAffiliations']
+            affiliations: user['affiliations']
         }
         logger.debug('req.user', req['user']);
         next();
