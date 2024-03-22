@@ -1,3 +1,10 @@
+## [0.5.1](https://github.com/fhswf/openai-proxy/compare/v0.5.0...v0.5.1) (2024-03-22)
+
+
+### Bug Fixes
+
+* **ts:** add groupBy workaraound ([137286c](https://github.com/fhswf/openai-proxy/commit/137286c8916e42e663abd9245cb91aeb3734bbbc))
+
 # [0.5.0](https://github.com/fhswf/openai-proxy/compare/v0.4.5...v0.5.0) (2024-03-22)
 
 
