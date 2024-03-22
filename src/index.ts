@@ -104,18 +104,12 @@ app.get('/callback', async (req, res) => {
     logger.debug('req.headers', req.headers);
     logger.debug('req: ', req.protocol, req.hostname, req.baseUrl, req.url, req.originalUrl, req.path, req.query);
 
-    const proto = req.headers['x-forwarded-proto'] || req.protocol;
-    const host = req.headers['x-forwarded-host'] || req.headers.host;
-    const prefix = req.headers['x-forwarded-prefix'] || '';
-
-    logger.debug('params', params);
-    logger.debug('headers', req.headers);
-    logger.debug('redirect_uri', redirect_uri.toString());
     client.callback(redirect_uri.toString(), params, { code_verifier: client.code_verifier })
         .then(tokenSet => {
 
             logger.debug('tokenSet', tokenSet);
             const user = jwt.decode(tokenSet.id_token);
+
             const token = tokenSet.id_token;
 
             res.cookie('token', token, { maxAge: 120000, httpOnly: true, secure: true, sameSite: 'none' });
@@ -158,17 +152,32 @@ app.use((req, res, next) => {
         return res.status(401).json({ message: 'Token not found' });
     }
 
-    jwt.verify(token, getSigningKey, { algorithms: ['RS256'] }, (err, decoded) => {
+    jwt.verify(token, getSigningKey, { algorithms: ['RS256'] }, (err, user) => {
         if (err) {
             logger.debug('err', err);
             return res.status(401).json({ message: 'Invalid token' });
         }
-        logger.debug('decoded', decoded);
+        logger.debug('decoded', user);
+
+        try {
+            user['scopedAffiliations'] = Object.groupBy(
+                user['affiliation']
+                    .map((affiliation) => {
+                        return affiliation.split('@');
+                    }),
+                ([org, role]) => org
+            );
+        } catch (err) {
+            logger.error('Error grouping affiliations: ', err);
+        }
+        logger.debug('user', user);
+
         req['user'] = {
-            name: decoded['name'],
-            email: decoded['email'],
-            sub: decoded.sub,
-            preferred_username: decoded['preferred_username']
+            name: user['name'],
+            email: user['email'],
+            sub: user.sub,
+            preferred_username: user['preferred_username'],
+            affiliations: user['scopedAffiliations']
         }
         logger.debug('req.user', req['user']);
         next();
