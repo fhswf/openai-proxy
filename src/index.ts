@@ -163,9 +163,10 @@ app.use((req, res, next) => {
             user['scopedAffiliations'] = Object.groupBy(
                 user['affiliation']
                     .map((affiliation) => {
-                        return affiliation.split('@');
+                        const [role, org] = affiliation.split('@');
+                        return { role, org }
                     }),
-                ([org, role]) => org
+                (affiliation) => affiliation['org']
             );
         } catch (err) {
             logger.error('Error grouping affiliations: ', err);
