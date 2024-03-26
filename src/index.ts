@@ -256,7 +256,7 @@ app.use(`${PREFIX}*`,
         proxyReqOptDecorator: function (proxyReqOpts, srcReq) {
             proxyReqOpts.headers['Authorization'] = `Bearer ${API_KEY}`;
             logger.debug('headers', proxyReqOpts.headers);
-            logger.debug('body', srcReq.body);
+            logger.debug('body', srcReq.body, proxyReqOpts.body);
             return proxyReqOpts;
         }
     })
