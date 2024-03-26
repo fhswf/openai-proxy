@@ -15,7 +15,7 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
         organization: fhswf
         container: openai-proxy
-        dry-run: true # Dry-run first, then change to `false`
+        dry-run: false
         prune-untagged: true
         prune-tags-regexes: |
             ^sha-.*
