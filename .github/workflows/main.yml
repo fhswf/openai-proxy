@@ -81,6 +81,7 @@ jobs:
         push: true
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
+        sbom: true
 
     - name: Update yaml
       uses: fjogeleit/yaml-update-action@main
