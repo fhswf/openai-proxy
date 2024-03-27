@@ -1,3 +1,10 @@
+# [0.6.0](https://github.com/fhswf/openai-proxy/compare/v0.5.5...v0.6.0) (2024-03-27)
+
+
+### Features
+
+* add debugging option ([b6f60c1](https://github.com/fhswf/openai-proxy/commit/b6f60c1111ca6f66fe3207bd6cce4ad057385104))
+
 ## [0.5.5](https://github.com/fhswf/openai-proxy/compare/v0.5.4...v0.5.5) (2024-03-22)
 
 
