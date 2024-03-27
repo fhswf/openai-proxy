@@ -258,6 +258,10 @@ app.use(`${PREFIX}*`,
             logger.debug('headers', proxyReqOpts.headers);
             logger.debug('body', srcReq.body, proxyReqOpts.body);
             return proxyReqOpts;
+        },
+        proxyReqBodyDecorator: function (bodyContent, srcReq) {
+            logger.debug('bodyContent', bodyContent, srcReq.body, JSON.stringify(srcReq));
+            return bodyContent;
         }
     })
 );
