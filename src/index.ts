@@ -260,7 +260,7 @@ app.use(`${PREFIX}*`,
             return proxyReqOpts;
         },
         proxyReqBodyDecorator: function (bodyContent, srcReq) {
-            logger.debug('bodyContent', bodyContent, srcReq.body, JSON.stringify(srcReq));
+            logger.debug('bodyContent', bodyContent, srcReq.body, srcReq.headers);
             return bodyContent;
         }
     })
