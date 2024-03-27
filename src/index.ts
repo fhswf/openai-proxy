@@ -241,7 +241,7 @@ app.use(logResponseBody);
 app.use(`${PREFIX}*`,
     proxy(API_URL, {
         https: true,
-        parseBody: false,
+        parseBody: true,
         proxyReqPathResolver: function (req) {
             const path = req.baseUrl.replace(PREFIX, '/v1');
             logger.debug('path: ', req.baseUrl, path);
@@ -262,6 +262,10 @@ app.use(`${PREFIX}*`,
         },
         proxyReqBodyDecorator: function (bodyContent, srcReq) {
             logger.debug('bodyContent', bodyContent, srcReq.body, srcReq.headers);
+            if (!srcReq.body || srcReq.method === 'GET') {
+                logger.debug('no body content in GET request')
+                return "";
+            }
             return bodyContent;
         }
     })
