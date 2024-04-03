@@ -62,6 +62,10 @@ jobs:
           ghcr.io/fhswf/openai-proxy          
         flavor: |
           latest=true
+        labels: |
+          org.opencontainers.image.description=OpenAI Proxy
+          org.opencontainers.image.licenses=MIT
+          org.opencontainers.image.source=https://github.com/fhswf/openai-proxy
         # generate Docker tags based on the following events/attributes
         tags: |
           type=sha,prefix=sha-,format=short,enable=true,priority=1100
