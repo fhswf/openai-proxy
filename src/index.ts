@@ -257,7 +257,16 @@ app.use(`${PREFIX}*`,
         proxyReqOptDecorator: function (proxyReqOpts, srcReq) {
             proxyReqOpts.headers['Authorization'] = `Bearer ${API_KEY}`;
             proxyReqOpts.headers['OpenAI-Beta'] = 'assistants=v1';
-            delete proxyReqOpts.headers['cookie'];
+            const filteredHeaders = proxyReqOpts.headers.entries()
+                .filter(([header, value]) => !header.startsWith('x-'))
+                .filter(([header, value]) => !header.startsWith('cookie'))
+                .filter(([header, value]) => !header.startsWith('host'))
+                .filter(([header, value]) => !header.startsWith('user-agent'))
+                .reduce((acc, [header, value]) => {
+                    acc[header] = value;
+                    return acc;
+                }, {});
+            proxyReqOpts.headers = filteredHeaders;
             logger.debug('proxy headers', proxyReqOpts.headers);
             logger.debug('body', srcReq.body, proxyReqOpts.body);
             return proxyReqOpts;
