@@ -1,3 +1,10 @@
+## [0.7.1](https://github.com/fhswf/openai-proxy/compare/v0.7.0...v0.7.1) (2024-04-05)
+
+
+### Bug Fixes
+
+* remove cookies from proxy request ([fe21ec2](https://github.com/fhswf/openai-proxy/commit/fe21ec2cc78b217f86804e34811ac887815e3efa))
+
 # [0.7.0](https://github.com/fhswf/openai-proxy/compare/v0.6.0...v0.7.0) (2024-04-03)
 
 
