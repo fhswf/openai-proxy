@@ -1,3 +1,10 @@
+# [0.7.0](https://github.com/fhswf/openai-proxy/compare/v0.6.0...v0.7.0) (2024-04-03)
+
+
+### Features
+
+* beta header for assistants api ([04b4222](https://github.com/fhswf/openai-proxy/commit/04b4222d7a06c7922566281beae317651de8486d))
+
 # [0.6.0](https://github.com/fhswf/openai-proxy/compare/v0.5.5...v0.6.0) (2024-03-27)
 
 
