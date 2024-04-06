@@ -209,7 +209,7 @@ app.use((req, res, next) => {
 /** redact headers */
 app.use((req, res, next) => {
     const redactHeaders = Object.keys(req.headers)
-        .filter((header) => header == 'cookie' || header.startsWith('x-'))
+        .filter((header) => header == 'cookie' /*|| header.startsWith('x-')*/)
     logger.debug('redactHeaders', redactHeaders);
     redactHeaders.forEach((header) => {
         req.headers[header] = 'redacted';
