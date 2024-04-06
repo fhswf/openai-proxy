@@ -1,3 +1,10 @@
+## [0.7.6](https://github.com/fhswf/openai-proxy/compare/v0.7.5...v0.7.6) (2024-04-06)
+
+
+### Bug Fixes
+
+* hotfix for header filter issue ([ba0e730](https://github.com/fhswf/openai-proxy/commit/ba0e73056b9f822e0b150a0378f12d6db60d0bc5))
+
 ## [0.7.5](https://github.com/fhswf/openai-proxy/compare/v0.7.4...v0.7.5) (2024-04-06)
 
 
