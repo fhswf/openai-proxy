@@ -206,6 +206,18 @@ app.use((req, res, next) => {
 
 });
 
+/** redact headers */
+app.use((req, res, next) => {
+    const redactHeaders = Object.keys(req.headers)
+        .filter((header) => header == 'cookie' || header.startsWith('x-'))
+    logger.debug('redactHeaders', redactHeaders);
+    redactHeaders.forEach((header) => {
+        req.headers[header] = 'redacted';
+        delete req.headers[header];
+    })
+    next();
+});
+
 app.get('/user', (req, res) => {
     res.send(req['user']);
 });
@@ -273,14 +285,6 @@ app.use(`${PREFIX}*`,
             proxyReqOpts.headers['authorization'] = `Bearer ${API_KEY}`;
             proxyReqOpts.headers['OpenAI-Beta'] = 'assistants=v1';
             logger.debug('srcReq.headers', srcReq.headers);
-            const redactHeaders = Object.keys(proxyReqOpts.headers)
-                .filter((header) => header == 'cookie' || header.startsWith('x-'))
-            logger.debug('redactHeaders', redactHeaders);
-            redactHeaders.forEach((header) => {
-                proxyReqOpts.headers[header] = "";
-                //delete proxyReqOpts.headers[header];
-            })
-
             logger.debug('proxy headers', proxyReqOpts.headers);
             logger.debug('body', srcReq.body, proxyReqOpts.body);
             return proxyReqOpts;
