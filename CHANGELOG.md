@@ -1,3 +1,10 @@
+## [0.8.3](https://github.com/fhswf/openai-proxy/compare/v0.8.2...v0.8.3) (2024-04-06)
+
+
+### Bug Fixes
+
+* filter proxy request headers ([72bbd28](https://github.com/fhswf/openai-proxy/commit/72bbd28d260881d5297507adb0076667bcec0b72))
+
 ## [0.8.2](https://github.com/fhswf/openai-proxy/compare/v0.8.1...v0.8.2) (2024-04-06)
 
 
