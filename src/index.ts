@@ -209,11 +209,15 @@ app.use((req, res, next) => {
 /** redact headers */
 app.use((req, res, next) => {
     const redactHeaders = Object.keys(req.headers)
-        .filter((header) => header == 'cookie' /*|| header.startsWith('x-')*/)
+        .filter((header) => header == 'cookie' || header.startsWith('x-'))
     logger.debug('redactHeaders', redactHeaders);
     redactHeaders.forEach((header) => {
-        req.headers[header] = 'redacted';
-        delete req.headers[header];
+        if (req.headers['origin'].startsWith('http://localhost')) {
+            req.headers[header] = 'redacted';
+        }
+        else {
+            delete req.headers[header];
+        }
     })
     next();
 });
