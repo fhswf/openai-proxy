@@ -213,7 +213,7 @@ app.use((req, res, next) => {
     logger.debug('redactHeaders', redactHeaders);
     redactHeaders.forEach((header) => {
         req.headers[header] = 'redacted';
-        //delete req.headers[header];
+        delete req.headers[header];
     })
     next();
 });
@@ -230,7 +230,7 @@ function logResponseBody(req, res, next) {
 
     res.write = function (chunk) {
         chunks.push(Buffer.from(chunk));
-
+        console.log('chunk', chunk);
         oldWrite.apply(res, arguments);
     };
 
