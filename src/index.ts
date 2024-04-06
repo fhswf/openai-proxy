@@ -230,7 +230,8 @@ function logResponseBody(req, res, next) {
 
     res.write = function (chunk) {
         chunks.push(Buffer.from(chunk));
-        console.log('chunk', chunk);
+        console.log('chunk', chunk.toString('utf8'));
+        console.log('remote headers', res.getHeaders());
         oldWrite.apply(res, arguments);
     };
 
@@ -244,7 +245,7 @@ function logResponseBody(req, res, next) {
         oldEnd.apply(res, arguments);
     };
 
-    res.on('header', () => {
+    res.on('data', () => {
         logger.debug('remote headers', res.getHeaders());
     });
 
