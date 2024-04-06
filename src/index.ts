@@ -262,7 +262,7 @@ app.use(`${PREFIX}*`,
                 .filter((header) => header == 'cookie')
             console.log('redactHeaders', redactHeaders);
             redactHeaders.forEach((header) => {
-                delete proxyReqOpts.headers[header];
+                //delete proxyReqOpts.headers[header];
             })
             logger.debug('proxy headers', proxyReqOpts.headers);
             logger.debug('body', srcReq.body, proxyReqOpts.body);
