@@ -1,3 +1,10 @@
+# [0.8.0](https://github.com/fhswf/openai-proxy/compare/v0.7.8...v0.8.0) (2024-04-06)
+
+
+### Features
+
+* liveness probe ([b6056a8](https://github.com/fhswf/openai-proxy/commit/b6056a820c9b3db0be207ec0a47450d39c3a0d8f))
+
 ## [0.7.8](https://github.com/fhswf/openai-proxy/compare/v0.7.7...v0.7.8) (2024-04-06)
 
 
