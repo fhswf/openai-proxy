@@ -244,6 +244,10 @@ function logResponseBody(req, res, next) {
         oldEnd.apply(res, arguments);
     };
 
+    res.on('header', () => {
+        logger.debug('remote headers', res.getHeaders());
+    });
+
     res.on('finish', () => {
         logger.debug(`request url = ${req.originalUrl}`);
         const headers = res.getHeaders();
