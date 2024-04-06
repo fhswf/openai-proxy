@@ -248,7 +248,7 @@ app.use(`${PREFIX}*`,
             return path;
         },
         proxyErrorHandler: function (err, res, next) {
-            console.error('error', err);
+            logger.error('error', err);
             switch (err && err.code) {
                 case 'ECONNRESET': { return res.status(504).send('Connection reset'); }
                 case 'ECONNREFUSED': { return res.status(502).send('Connection refused'); }
@@ -260,8 +260,8 @@ app.use(`${PREFIX}*`,
             proxyReqOpts.headers['OpenAI-Beta'] = 'assistants=v1';
             logger.debug('srcReq.headers', srcReq.headers);
             const redactHeaders = Object.keys(proxyReqOpts.headers)
-                .filter((header) => header == 'cookie')
-            console.log('redactHeaders', redactHeaders);
+                .filter((header) => header == 'cookie' || header.startsWith('x-'))
+            logger.debug('redactHeaders', redactHeaders);
             redactHeaders.forEach((header) => {
                 proxyReqOpts.headers[header] = "";
             })
@@ -289,7 +289,7 @@ try {
     });
 }
 catch (err) {
-    console.error('Error: ', err);
+    logger.error('Error: ', err);
     process.exit(1);
 };
 
