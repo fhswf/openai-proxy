@@ -213,7 +213,7 @@ app.use((req, res, next) => {
     logger.debug('redactHeaders', redactHeaders);
     redactHeaders.forEach((header) => {
         req.headers[header] = 'redacted';
-        delete req.headers[header];
+        //delete req.headers[header];
     })
     next();
 });
