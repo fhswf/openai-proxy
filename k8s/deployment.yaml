@@ -83,6 +83,12 @@ spec:
                 configMapKeyRef:
                   key: oidc.post_logout_redirect_uri
                   name: proxy-config
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
           volumeMounts:
             - name: ca-certs
               mountPath: /etc/certs
