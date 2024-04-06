@@ -278,7 +278,7 @@ app.use(`${PREFIX}*`,
             logger.debug('redactHeaders', redactHeaders);
             redactHeaders.forEach((header) => {
                 proxyReqOpts.headers[header] = "";
-                delete proxyReqOpts.headers[header];
+                //delete proxyReqOpts.headers[header];
             })
 
             logger.debug('proxy headers', proxyReqOpts.headers);
