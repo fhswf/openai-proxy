@@ -248,9 +248,10 @@ app.use(`${PREFIX}*`,
             return path;
         },
         proxyErrorHandler: function (err, res, next) {
+            console.error('error', err);
             switch (err && err.code) {
-                case 'ECONNRESET': { return res.status(405).send('504 became 405'); }
-                case 'ECONNREFUSED': { return res.status(200).send('gotcher back'); }
+                case 'ECONNRESET': { return res.status(504).send('Connection reset'); }
+                case 'ECONNREFUSED': { return res.status(502).send('Connection refused'); }
                 default: { next(err); }
             }
         },
@@ -262,7 +263,7 @@ app.use(`${PREFIX}*`,
                 .filter((header) => header == 'cookie')
             console.log('redactHeaders', redactHeaders);
             redactHeaders.forEach((header) => {
-                //delete proxyReqOpts.headers[header];
+                proxyReqOpts.headers[header] = "";
             })
             logger.debug('proxy headers', proxyReqOpts.headers);
             logger.debug('body', srcReq.body, proxyReqOpts.body);
