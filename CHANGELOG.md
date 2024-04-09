@@ -1,3 +1,10 @@
+## [0.8.4](https://github.com/fhswf/openai-proxy/compare/v0.8.3...v0.8.4) (2024-04-06)
+
+
+### Bug Fixes
+
+* **development:** cors issue ([e8b01af](https://github.com/fhswf/openai-proxy/commit/e8b01aff2a3453be58c70f3307a01dec5305b268))
+
 ## [0.8.3](https://github.com/fhswf/openai-proxy/compare/v0.8.2...v0.8.3) (2024-04-06)
 
 
