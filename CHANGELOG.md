@@ -1,3 +1,10 @@
+## [0.8.7](https://github.com/fhswf/openai-proxy/compare/v0.8.6...v0.8.7) (2024-04-10)
+
+
+### Bug Fixes
+
+* don't advertise express ([9fd1da9](https://github.com/fhswf/openai-proxy/commit/9fd1da9463074861de4b1e7299f5c1296e128a71))
+
 ## [0.8.6](https://github.com/fhswf/openai-proxy/compare/v0.8.5...v0.8.6) (2024-04-10)
 
 
