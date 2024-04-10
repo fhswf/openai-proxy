@@ -23,7 +23,8 @@ const logger = createLogger({
 });
 
 const app = express();
-
+// don't advertise that we are using express
+app.set('x-powered-by', false);
 
 export const CLIENT_ID = process.env.CLIENT_ID;
 export const CLIENT_SECRET = process.env.CLIENT_SECRET;
@@ -299,7 +300,8 @@ app.use(`${PREFIX}*`,
             return proxyReqOpts;
         },
         proxyReqBodyDecorator: function (bodyContent, srcReq) {
-            logger.debug('bodyContent', bodyContent, srcReq.body, srcReq.headers);
+            logger.debug('bodyContent1', srcReq.body, srcReq.headers);
+            logger.debug('bodyContent2', bodyContent);
             if (!srcReq.body || srcReq.method === 'GET') {
                 logger.debug('no body content in GET request')
                 return "";
