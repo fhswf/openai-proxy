@@ -276,7 +276,7 @@ app.use(logResponseBody);
 app.use(`${PREFIX}*`,
     proxy(API_URL, {
         https: true,
-        parseBody: false,
+        parseReqBody: false,
         proxyReqPathResolver: function (req) {
             const path = req.baseUrl.replace(PREFIX, '/v1');
             logger.debug('path: ', req.baseUrl, path);
