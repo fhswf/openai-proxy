@@ -155,7 +155,7 @@ app.get('/healthz', (req, res) => {
 /**
  * Middleware to check if the user is authenticated
  */
-app.use((req, res, next) => {
+const checkAuth = (req, res, next) => {
 
     let token = req.cookies.token;
     if (!token && req.headers.authorization) {
@@ -204,13 +204,11 @@ app.use((req, res, next) => {
         logger.debug('req.user', req['user']);
         next();
     })
+}
 
-});
-
-/** redact headers */
-app.use((req, res, next) => {
+const redacHeaders = (req, res, next) => {
     const redactHeaders = Object.keys(req.headers)
-        .filter((header) => header == 'cookie' || header.startsWith('x-'))
+        .filter((header) => header == 'cookie' || header.startsWith('x-'));
     logger.debug('redactHeaders', redactHeaders);
     redactHeaders.forEach((header) => {
         if (req.headers['origin'].startsWith('http://localhost')) {
@@ -219,9 +217,16 @@ app.use((req, res, next) => {
         else {
             delete req.headers[header];
         }
-    })
+    });
     next();
-});
+};
+
+if (!process.env.IGNORE_AUTH) {
+    app.use(checkAuth);
+    /** redact headers */
+    app.use(redacHeaders);
+}
+
 
 app.get('/user', (req, res) => {
     res.send(req['user']);
@@ -244,7 +249,7 @@ function logResponseBody(req, res, next) {
         if (chunk)
             chunks.push(Buffer.from(chunk));
 
-        var body = Buffer.concat(chunks).toString('utf8');
+        let body = Buffer.concat(chunks).toString('utf8');
         logger.debug(req.path, body);
 
         oldEnd.apply(res, arguments);
@@ -274,17 +279,18 @@ function logResponseBody(req, res, next) {
 
 app.use(logResponseBody);
 
-app.use(`${PREFIX}*`,
-    proxy(API_URL, {
+const doProxy = (req, res) => {
+
+    const parsingProxy = proxy(API_URL, {
         https: true,
-        parseReqBody: false,
+        parseReqBody: true,
         proxyReqPathResolver: function (req) {
             const path = req.baseUrl.replace(PREFIX, '/v1');
             logger.debug('path: ', req.baseUrl, path);
             return path;
         },
         proxyErrorHandler: function (err, res, next) {
-            logger.error('error', err);
+            logger.error({ 'error': err });
             switch (err && err.code) {
                 case 'ECONNRESET': { return res.status(504).send('Connection reset'); }
                 case 'ECONNREFUSED': { return res.status(502).send('Connection refused'); }
@@ -294,27 +300,61 @@ app.use(`${PREFIX}*`,
         proxyReqOptDecorator: function (proxyReqOpts, srcReq) {
             proxyReqOpts.headers['authorization'] = `Bearer ${API_KEY}`;
             proxyReqOpts.headers['OpenAI-Beta'] = 'assistants=v1';
-            logger.debug('srcReq.headers', srcReq.headers);
-            logger.debug('proxy headers', proxyReqOpts.headers);
-            logger.debug('body', srcReq.body, proxyReqOpts.body);
+            console.log('proxyReqOpts', proxyReqOpts.headers);
             return proxyReqOpts;
         },
         proxyReqBodyDecorator: function (bodyContent, srcReq) {
-            logger.debug('bodyContent1', srcReq.body, srcReq.headers);
-            logger.debug('bodyContent2', bodyContent);
             if (!srcReq.body || srcReq.method === 'GET') {
-                logger.debug('no body content in GET request')
+                logger.debug('no body content in GET request');
                 return "";
             }
+
             return bodyContent;
         }
     })
-);
+
+    const rawProxy = proxy(API_URL, {
+        https: true,
+        parseReqBody: false,
+        proxyReqPathResolver: function (req) {
+            const path = req.baseUrl.replace(PREFIX, '/v1');
+            logger.debug('path: ', req.baseUrl, path);
+            return path;
+        },
+        proxyErrorHandler: function (err, res, next) {
+            logger.error({ 'error': err });
+            switch (err && err.code) {
+                case 'ECONNRESET': { return res.status(504).send('Connection reset'); }
+                case 'ECONNREFUSED': { return res.status(502).send('Connection refused'); }
+                default: { next(err); }
+            }
+        },
+        proxyReqOptDecorator: function (proxyReqOpts, srcReq) {
+            proxyReqOpts.headers['authorization'] = `Bearer ${API_KEY}`;
+            proxyReqOpts.headers['OpenAI-Beta'] = 'assistants=v1';
+            console.log('proxyReqOpts', proxyReqOpts.headers);
+            return proxyReqOpts;
+        },
+    })
+
+    if (req.headers['content-type'] === 'application/json') {
+        parsingProxy(req, res);
+    } else {
+        rawProxy(req, res);
+    }
+}
+
+app.use(`${PREFIX}*`, doProxy);
 
 
 try {
-    await mongo_connect();
-    client = await initClient();
+    if (!process.env.IGNORE_DB) {
+        logger.debug('connecting to mongo');
+        await mongo_connect();
+    }
+    if (!process.env.IGNORE_AUTH) {
+        client = await initClient();
+    }
     app.listen(3000, () => {
         logger.debug('Proxy server is running on port 3000');
     });
