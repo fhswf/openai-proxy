@@ -1,3 +1,10 @@
+## [0.8.6](https://github.com/fhswf/openai-proxy/compare/v0.8.5...v0.8.6) (2024-04-10)
+
+
+### Bug Fixes
+
+* don't parse body ([46e9f65](https://github.com/fhswf/openai-proxy/commit/46e9f6502b0542a5012968cbe397d2844040cd15))
+
 ## [0.8.5](https://github.com/fhswf/openai-proxy/compare/v0.8.4...v0.8.5) (2024-04-09)
 
 
