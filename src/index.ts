@@ -206,12 +206,12 @@ const checkAuth = (req, res, next) => {
     })
 }
 
-const redacHeaders = (req, res, next) => {
-    const redactHeaders = Object.keys(req.headers)
+const redactHeaders = (req, res, next) => {
+    const _redactHeaders = Object.keys(req.headers)
         .filter((header) => header == 'cookie' || header.startsWith('x-'));
-    logger.debug('redactHeaders', redactHeaders);
-    redactHeaders.forEach((header) => {
-        if (req.headers['origin'].startsWith('http://localhost')) {
+    logger.debug('redactHeaders', _redactHeaders);
+    _redactHeaders.forEach((header) => {
+        if (req.headers['origin']?.startsWith('http://localhost')) {
             req.headers[header] = 'redacted';
         }
         else {
@@ -224,7 +224,7 @@ const redacHeaders = (req, res, next) => {
 if (!process.env.IGNORE_AUTH) {
     app.use(checkAuth);
     /** redact headers */
-    app.use(redacHeaders);
+    app.use(redactHeaders);
 }
 
 
