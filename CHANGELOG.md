@@ -1,3 +1,10 @@
+## [0.8.9](https://github.com/fhswf/openai-proxy/compare/v0.8.8...v0.8.9) (2024-04-25)
+
+
+### Bug Fixes
+
+* exception in `redactHeaders` ([c12bde7](https://github.com/fhswf/openai-proxy/commit/c12bde7ada20571d835b740b5668014e859ce35a))
+
 ## [0.8.8](https://github.com/fhswf/openai-proxy/compare/v0.8.7...v0.8.8) (2024-04-10)
 
 
