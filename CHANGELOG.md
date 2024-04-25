@@ -1,3 +1,10 @@
+## [0.8.8](https://github.com/fhswf/openai-proxy/compare/v0.8.7...v0.8.8) (2024-04-10)
+
+
+### Bug Fixes
+
+* pass binary files without parsing ([0f0d942](https://github.com/fhswf/openai-proxy/commit/0f0d942feab9b2c8120d31f0f5c4f7f4f752f267))
+
 ## [0.8.7](https://github.com/fhswf/openai-proxy/compare/v0.8.6...v0.8.7) (2024-04-10)
 
 
