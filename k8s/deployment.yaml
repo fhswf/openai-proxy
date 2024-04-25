@@ -19,7 +19,7 @@ spec:
         io.kompose.service: proxy
     spec:
       containers:
-        - image: ghcr.io/fhswf/openai-proxy:sha-767b8e1
+        - image: ghcr.io/fhswf/openai-proxy:sha-8151d22
           name: proxy
           ports:
             - containerPort: 3000
