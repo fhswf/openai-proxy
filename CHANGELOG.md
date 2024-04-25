@@ -1,3 +1,10 @@
+## [0.9.1](https://github.com/fhswf/openai-proxy/compare/v0.9.0...v0.9.1) (2024-04-25)
+
+
+### Bug Fixes
+
+* extend cookie lifetime ([7cdf808](https://github.com/fhswf/openai-proxy/commit/7cdf8089752a1bda0647930f3f711984f2db462c))
+
 # [0.9.0](https://github.com/fhswf/openai-proxy/compare/v0.8.9...v0.9.0) (2024-04-25)
 
 
