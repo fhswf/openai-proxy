@@ -113,7 +113,7 @@ app.get('/callback', async (req, res) => {
 
             const token = tokenSet.id_token;
 
-            res.cookie('token', token, { maxAge: 120000, httpOnly: true, secure: true, sameSite: 'none' });
+            res.cookie('token', token, { maxAge: 86400000, httpOnly: true, secure: true, sameSite: 'none' });
             const return_url = req.cookies.return_url || "/";
             logger.debug('return_url', return_url);
             res.redirect(return_url);
