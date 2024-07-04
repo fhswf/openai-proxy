@@ -1,3 +1,10 @@
+## [0.9.3](https://github.com/fhswf/openai-proxy/compare/v0.9.2...v0.9.3) (2024-07-04)
+
+
+### Bug Fixes
+
+* **security:** update insecure packages ([e01344a](https://github.com/fhswf/openai-proxy/commit/e01344ab36d05463e720fed369066382b9243f6d))
+
 ## [0.9.2](https://github.com/fhswf/openai-proxy/compare/v0.9.1...v0.9.2) (2024-07-04)
 
 
