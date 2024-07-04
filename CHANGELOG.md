@@ -1,3 +1,10 @@
+## [0.9.5](https://github.com/fhswf/openai-proxy/compare/v0.9.4...v0.9.5) (2024-07-04)
+
+
+### Bug Fixes
+
+* **build:** update typescript configuration ([6c881d9](https://github.com/fhswf/openai-proxy/commit/6c881d9269e5bfac7013ce66f581ba01185d3aeb))
+
 ## [0.9.4](https://github.com/fhswf/openai-proxy/compare/v0.9.3...v0.9.4) (2024-07-04)
 
 
