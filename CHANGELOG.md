@@ -1,3 +1,10 @@
+## [0.9.2](https://github.com/fhswf/openai-proxy/compare/v0.9.1...v0.9.2) (2024-07-04)
+
+
+### Bug Fixes
+
+* release issue ([c8af893](https://github.com/fhswf/openai-proxy/commit/c8af893e6d6f9e65af69e999d5df588b94e4a740))
+
 ## [0.9.1](https://github.com/fhswf/openai-proxy/compare/v0.9.0...v0.9.1) (2024-04-25)
 
 
