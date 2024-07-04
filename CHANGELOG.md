@@ -1,3 +1,10 @@
+## [0.9.4](https://github.com/fhswf/openai-proxy/compare/v0.9.3...v0.9.4) (2024-07-04)
+
+
+### Bug Fixes
+
+* **build:** enable dependabot for npm ([8f44855](https://github.com/fhswf/openai-proxy/commit/8f4485558fc3bdf4ef51a3caf0b86e096e92543e))
+
 ## [0.9.3](https://github.com/fhswf/openai-proxy/compare/v0.9.2...v0.9.3) (2024-07-04)
 
 
