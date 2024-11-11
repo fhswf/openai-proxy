@@ -3,8 +3,6 @@ kind: Application
 metadata:
   name: openai-proxy
   namespace: argocd
-  annotations:
-    argocd-image-updater.argoproj.io/image-list: ghcr.io/fhswf/openai-proxy
 spec:
   destination:
     namespace: openai-proxy
@@ -16,3 +14,7 @@ spec:
     directory:
       exclude: config.yaml
     targetRevision: HEAD
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
