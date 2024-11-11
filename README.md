@@ -1,5 +1,5 @@
-[![Quality Gate Status](https://hopper.fh-swf.de/sonarqube/api/project_badges/measure?project=fhswf_openai-proxy_AY5lcaShWNlYFiIpzZcO&metric=alert_status&token=sqb_22dc5cd061114f9aa66b1ef9cb98f7ba37c9ab6e)](https://hopper.fh-swf.de/sonarqube/dashboard?id=fhswf_openai-proxy_AY5lcaShWNlYFiIpzZcO)
-<img src="https://login.ki.fh-swf.de/argocd/api/badge?name=openai-proxy&revision=true">
+[![quality gate status](https://hopper.fh-swf.de/sonarqube/api/project_badges/measure?project=fhswf_openai-proxy_AY5lcaShWNlYFiIpzZcO&metric=alert_status&token=sqb_22dc5cd061114f9aa66b1ef9cb98f7ba37c9ab6e)](https://hopper.fh-swf.de/sonarqube/dashboard?id=fhswf_openai-proxy_AY5lcaShWNlYFiIpzZcO)
+[![deployment status](https://login.ki.fh-swf.de/argocd/api/badge?name=openai-proxy&revision=true)](https://login.ki.fh-swf.de/argocd/applications/argocd/openai-proxy)
 
 # Proxy server for the OpenAI API
 This proxy uses an OIDC server to authenticate users and forwards requests 
