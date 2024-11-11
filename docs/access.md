@@ -9,5 +9,5 @@ Um die anfallenden Kosten nach Gruppen auszuwerten, werden mehrere API-Keys verw
 |-----------------------------------|-------------------------|------------|
 | Professor*innen der Hochschule    | faculty@fh-swf.de       | KEY_1      |
 | Studierende des FB I&N            | student@fb-in.fh-swf.de | KEY_2      |
-| Angehörige des FB I&N, die *nicht* unter <br> die obigen Kategorien fallen <br> (wiss. Mitarbeiter, Mitarbeiter in TuV) | member@fb-in.fh-swf.de | KEY_3 |
+| Angehörige des FB I&N, die *nicht* unter <br> eine der obigen Kategorien fallen <br> (wiss. Mitarbeiter\*innen, Mitarbeiter\*innen in TuV) | member@fb-in.fh-swf.de | KEY_3 |
 | Einzelne Dezernate der Verwaltung | **offen**               | KEY_4      |
