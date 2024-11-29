@@ -63,8 +63,6 @@ let redirect_uri;
 
 app.get('/login', async (req, res) => {
     const params = req.query;
-    logger.debug('req.headers', req.headers);
-    logger.debug('req: ', req.protocol, req.hostname, req.baseUrl, req.url, req.originalUrl, req.path, req.query);
 
     const proto = req.headers['x-forwarded-proto'] || req.protocol;
     const host = req.headers['x-forwarded-host'] || req.headers.host;
@@ -107,15 +105,11 @@ app.get('/callback', async (req, res) => {
 
     client.callback(redirect_uri.toString(), params, { code_verifier: client.code_verifier })
         .then(tokenSet => {
-
-            logger.debug('tokenSet', tokenSet);
             const user = jwt.decode(tokenSet.id_token);
-
             const token = tokenSet.id_token;
 
             res.cookie('token', token, { maxAge: 86400000, httpOnly: true, secure: true, sameSite: 'none' });
             const return_url = req.cookies.return_url || "/";
-            logger.debug('return_url', return_url);
             res.redirect(return_url);
         })
         .catch(err => {
@@ -161,7 +155,6 @@ const checkAuth = (req, res, next) => {
     if (!token && req.headers.authorization) {
         token = req.headers.authorization.split(' ')[1];
     }
-    logger.debug('token', token);
 
     if (!token) {
         return res.status(401).json({ message: 'Token not found' });
@@ -240,8 +233,6 @@ function logResponseBody(req, res, next) {
 
     res.write = function (chunk) {
         chunks.push(Buffer.from(chunk));
-        console.log('chunk', chunk.toString('utf8'));
-        console.log('remote headers', res.getHeaders());
         oldWrite.apply(res, arguments);
     };
 
@@ -250,19 +241,16 @@ function logResponseBody(req, res, next) {
             chunks.push(Buffer.from(chunk));
 
         let body = Buffer.concat(chunks).toString('utf8');
-        logger.debug(req.path, body);
-
         oldEnd.apply(res, arguments);
     };
 
     res.on('data', () => {
-        logger.debug('remote headers', res.getHeaders());
+
     });
 
+    /** Logs the request to the database */
     res.on('finish', () => {
-        logger.debug(`request url = ${req.originalUrl}`);
         const headers = res.getHeaders();
-        logger.debug("headers: ", headers);
 
         const request = {
             user: req.user,
@@ -300,12 +288,10 @@ const doProxy = (req, res) => {
         proxyReqOptDecorator: function (proxyReqOpts, srcReq) {
             proxyReqOpts.headers['authorization'] = `Bearer ${API_KEY}`;
             proxyReqOpts.headers['OpenAI-Beta'] = 'assistants=v2';
-            console.log('proxyReqOpts', proxyReqOpts.headers);
             return proxyReqOpts;
         },
         proxyReqBodyDecorator: function (bodyContent, srcReq) {
             if (!srcReq.body || srcReq.method === 'GET') {
-                logger.debug('no body content in GET request');
                 return "";
             }
 
@@ -318,7 +304,6 @@ const doProxy = (req, res) => {
         parseReqBody: false,
         proxyReqPathResolver: function (req) {
             const path = req.baseUrl.replace(PREFIX, '/v1');
-            logger.debug('path: ', req.baseUrl, path);
             return path;
         },
         proxyErrorHandler: function (err, res, next) {
@@ -332,7 +317,6 @@ const doProxy = (req, res) => {
         proxyReqOptDecorator: function (proxyReqOpts, srcReq) {
             proxyReqOpts.headers['authorization'] = `Bearer ${API_KEY}`;
             proxyReqOpts.headers['OpenAI-Beta'] = 'assistants=v2';
-            console.log('proxyReqOpts', proxyReqOpts.headers);
             return proxyReqOpts;
         },
     })
