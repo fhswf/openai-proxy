@@ -1,3 +1,10 @@
+## [0.10.1](https://github.com/fhswf/openai-proxy/compare/v0.10.0...v0.10.1) (2024-11-29)
+
+
+### Bug Fixes
+
+* **logout:** clear token cookie ([09da740](https://github.com/fhswf/openai-proxy/commit/09da74035e98f0301381d38706c05809b8ca7523))
+
 # [0.10.0](https://github.com/fhswf/openai-proxy/compare/v0.9.5...v0.10.0) (2024-11-29)
 
 
