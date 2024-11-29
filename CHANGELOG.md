@@ -1,3 +1,10 @@
+# [0.10.0](https://github.com/fhswf/openai-proxy/compare/v0.9.5...v0.10.0) (2024-11-29)
+
+
+### Features
+
+* remove logging ([55fa7fa](https://github.com/fhswf/openai-proxy/commit/55fa7fa419d9a8041b010226cfa703ca847fb3c2))
+
 ## [0.9.5](https://github.com/fhswf/openai-proxy/compare/v0.9.4...v0.9.5) (2024-07-04)
 
 
