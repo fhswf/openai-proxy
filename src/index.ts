@@ -91,6 +91,7 @@ app.get('/logout', (req, res) => {
             client_id: CLIENT_ID,
             id_token_hint: token
         });
+        res.clearCookie('token')
         res.redirect(endSessionUrl)
     }
     else {
@@ -304,6 +305,7 @@ const doProxy = (req, res) => {
         parseReqBody: false,
         proxyReqPathResolver: function (req) {
             const path = req.baseUrl.replace(PREFIX, '/v1');
+
             return path;
         },
         proxyErrorHandler: function (err, res, next) {
