@@ -1,3 +1,10 @@
+## [0.10.2](https://github.com/fhswf/openai-proxy/compare/v0.10.1...v0.10.2) (2025-02-14)
+
+
+### Bug Fixes
+
+* **mongodb:** increase resource limits ([685310f](https://github.com/fhswf/openai-proxy/commit/685310ff502dec5c4d62e3af168b67323b66c1c2))
+
 ## [0.10.1](https://github.com/fhswf/openai-proxy/compare/v0.10.0...v0.10.1) (2024-11-29)
 
 
