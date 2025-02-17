@@ -252,11 +252,18 @@ function logResponseBody(req, res, next) {
     /** Logs the request to the database */
     res.on('finish', () => {
         const headers = res.getHeaders();
+        let model = "";
+        if (req.body instanceof Object && "model" in req.body) {
+            model = req.body.model
+        }
+        else if ('openai-model' in headers) {
+            model = headers['openai-model'];
+        }
 
         const request = {
             user: req.user,
             req_id: headers['x-request-id'],
-            model: headers['openai-model'],
+            model,
             organization: headers['openai-organization'],
             date: Date.now(),
         };
