@@ -1,3 +1,10 @@
+## [0.11.1](https://github.com/fhswf/openai-proxy/compare/v0.11.0...v0.11.1) (2025-02-17)
+
+
+### Bug Fixes
+
+* add model in request log ([a62b2be](https://github.com/fhswf/openai-proxy/commit/a62b2bef599e1fe14242cebf75e46f310534e042))
+
 # [0.11.0](https://github.com/fhswf/openai-proxy/compare/v0.10.2...v0.11.0) (2025-02-17)
 
 
