@@ -48,8 +48,46 @@ export function countRequests() {
                     count: { $sum: 1 }
                 }
             },
+            // Umwandlung der _id-Struktur zum Vereinfachen der nächsten Gruppierung
             {
-                $sort: { "_id.year": 1, "_id.month": 1, count: -1 }
+                $project: {
+                    year: "$_id.year",
+                    month: "$_id.month",
+                    affiliation: "$_id.affiliation",
+                    count: 1,
+                    _id: 0
+                }
+            },
+            // Zweite Gruppierungsstufe nach Jahr und Monat, wobei die Ergebnisse je Affiliation gesammelt werden
+            {
+                $group: {
+                    _id: {
+                        year: "$year",
+                        month: "$month"
+                    },
+                    affiliations: {
+                        $push: {
+                            affiliation: "$affiliation",
+                            count: "$count"
+                        }
+                    }
+                }
+            },
+            // Finalisierung der Struktur: Gruppierung nach Jahr und Anordnung der Monate je Jahr
+            {
+                $group: {
+                    _id: "$_id.year",
+                    months: {
+                        $push: {
+                            month: "$_id.month",
+                            affiliations: "$affiliations"
+                        }
+                    }
+                }
+            },
+            // Sortieren der Ergebnisse, zunächst nach Jahr dann innerhalb der Jahre nach Monaten
+            {
+                $sort: { "_id": 1, "months.month": 1 }
             }
         ])
         .toArray();
