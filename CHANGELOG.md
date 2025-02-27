@@ -1,3 +1,10 @@
+# [0.13.0](https://github.com/fhswf/openai-proxy/compare/v0.12.0...v0.13.0) (2025-02-27)
+
+
+### Features
+
+* **statistics:** produce monthly statistics ([ff54943](https://github.com/fhswf/openai-proxy/commit/ff549432de3499d866af32177f8f39bdfcea958e))
+
 # [0.12.0](https://github.com/fhswf/openai-proxy/compare/v0.11.1...v0.12.0) (2025-02-27)
 
 
