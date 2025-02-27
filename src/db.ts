@@ -28,8 +28,23 @@ export function logRequest(request) {
 export function countRequests() {
     return db?.collection('requests')
         .aggregate([
-            { $project: { user: 1, affiliations: "$user.affiliations" } },
-            { $group: { _id: "$user.email", affiliations: { $mergeObjects: "$affiliations" }, count: { $count: {} } } },
-            { $sort: { count: -1 } }])
+            {
+                $project: {
+                    affiliations: { $objectToArray: "$user.affiliations" },
+                }
+            },
+            {
+                $unwind: "$affiliations"
+            },
+            {
+                $group: {
+                    _id: "$affiliations.k",
+                    count: { $sum: 1 }
+                }
+            },
+            {
+                $sort: { count: -1 }
+            }
+        ])
         .toArray();
 }
