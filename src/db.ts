@@ -31,6 +31,8 @@ export function countRequests() {
             {
                 $project: {
                     affiliations: { $objectToArray: "$user.affiliations" },
+                    month: { $month: { $toDate: "$date" } },
+                    year: { $year: { $toDate: "$date" } },
                 }
             },
             {
@@ -38,12 +40,16 @@ export function countRequests() {
             },
             {
                 $group: {
-                    _id: "$affiliations.k",
+                    _id: {
+                        month: "$month",
+                        year: "$year",
+                        affiliation: "$affiliations.k"
+                    },
                     count: { $sum: 1 }
                 }
             },
             {
-                $sort: { count: -1 }
+                $sort: { "_id.year": 1, "_id.month": 1, count: -1 }
             }
         ])
         .toArray();
