@@ -77,7 +77,7 @@ spec:
   - host: openai.fh-swf.cloud
     http:
       paths:
-      - frontend:
+      - backend:
           service:
             name: openai-proxy
             port:
