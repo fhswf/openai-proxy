@@ -80,7 +80,7 @@ spec:
       paths:
       - backend:
           service:
-            name: openai-proxy
+            name: proxy
             port:
               number: 3000
         path: /api
