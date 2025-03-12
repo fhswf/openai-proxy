@@ -49,7 +49,7 @@ metadata:
     traefik.ingress.kubernetes.io/router.priority: "100"
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
     traefik.ingress.kubernetes.io/router.tls.certresolver: letsencrypt
-    traefik.ingress.kubernetes.io/router.middlewares: api-stripprefix@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: openai-proxy-api-stripprefix@kubernetescrd
   name: openai.ki.fh-swf.de-backend
   namespace: openai-proxy
 spec:
