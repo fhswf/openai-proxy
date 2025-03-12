@@ -41,28 +41,6 @@ spec:
   tls:
     certResolver: default
 ---
-apiVersion: traefik.io/v1alpha1
-kind: IngressRoute
-metadata:
-  name: proxy-openai.ki.fh-swf.de
-  namespace: openai-proxy
-spec:
-  entryPoints:
-    - web-secure
-  routes:
-    - kind: Rule
-      match: Host(`openai.ki.fh-swf.de`) && PathPrefix(`/api`)
-      priority: 100
-      services:
-        - kind: Service
-          name: proxy
-          namespace: openai-proxy
-          port: 3000
-      middlewares:
-        - name: api-stripprefix
-  tls:
-    certResolver: default
----
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -71,7 +49,7 @@ metadata:
     traefik.ingress.kubernetes.io/router.priority: "100"
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
     traefik.ingress.kubernetes.io/router.tls.certresolver: letsencrypt
-    traefik.ingress.kubernetes.io/router.middlewares: api-stripprefix
+    traefik.ingress.kubernetes.io/router.middlewares: api-stripprefix@kubernetescrd
   name: openai.ki.fh-swf.de-backend
   namespace: openai-proxy
 spec:
