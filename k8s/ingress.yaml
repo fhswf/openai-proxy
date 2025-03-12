@@ -54,7 +54,7 @@ metadata:
   namespace: openai-proxy
 spec:
   rules:
-  - host: openai.ki.fh-swf
+  - host: openai.ki.fh-swf.de
     http:
       paths:
       - backend:
