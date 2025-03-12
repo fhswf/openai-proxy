@@ -71,6 +71,30 @@ metadata:
     traefik.ingress.kubernetes.io/router.priority: "100"
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
     traefik.ingress.kubernetes.io/router.tls.certresolver: letsencrypt
+    traefik.ingress.kubernetes.io/router.middlewares: api-stripprefix
+  name: openai.ki.fh-swf.de-backend
+  namespace: openai-proxy
+spec:
+  rules:
+  - host: openai.ki.fh-swf
+    http:
+      paths:
+      - backend:
+          service:
+            name: proxy
+            port:
+              number: 3000
+        path: /api
+        pathType: Prefix
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    traefik.frontend.passHostHeader: "true"
+    traefik.ingress.kubernetes.io/router.priority: "100"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls.certresolver: letsencrypt
   name: openai.fh-swf.cloud-backend
   namespace: openai-proxy
 spec:
@@ -84,4 +108,4 @@ spec:
             port:
               number: 3000
         path: /api
-        pathType: Prefix
+        pathType: Prefix       
