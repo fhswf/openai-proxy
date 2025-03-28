@@ -6,5 +6,9 @@
         "markdown",
         "latex",
         "plaintext"
-    ]
+    ],
+    "sonarlint.connectedMode.project": {
+        "connectionId": "hopper",
+        "projectKey": "fhswf_openai-proxy_AY5lcaShWNlYFiIpzZcO"
+    }
 }

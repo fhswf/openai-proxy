@@ -39,55 +39,109 @@ export function countRequests() {
                 $unwind: "$affiliations"
             },
             {
-                $group: {
-                    _id: {
-                        month: "$month",
-                        year: "$year",
-                        affiliation: "$affiliations.k"
-                    },
-                    count: { $sum: 1 }
-                }
-            },
-            // Umwandlung der _id-Struktur zum Vereinfachen der nächsten Gruppierung
-            {
                 $project: {
-                    year: "$_id.year",
-                    month: "$_id.month",
-                    affiliation: "$_id.affiliation",
-                    count: 1,
-                    _id: 0
+                    scope: "$affiliations.k",
+                    roles: "$affiliations.v",
+                    month: 1,
+                    year: 1
                 }
             },
-            // Zweite Gruppierungsstufe nach Jahr und Monat, wobei die Ergebnisse je Affiliation gesammelt werden
             {
-                $group: {
-                    _id: {
-                        year: "$year",
-                        month: "$month"
-                    },
-                    affiliations: {
-                        $push: {
-                            affiliation: "$affiliation",
-                            count: "$count"
+                $unwind: "$roles"
+            },
+            {
+                $facet: {
+                    byScope: [
+                        {
+                            $match: {
+                                roles: "member"
+                            }
+                        },
+                        {
+                            $group: {
+                                _id: {
+                                    year: "$year",
+                                    month: "$month",
+                                    scope: "$scope"
+                                },
+                                count: { $sum: 1 }
+                            }
+                        },
+                        {
+                            $group: {
+                                _id: {
+                                    year: "$_id.year",
+                                    month: "$_id.month"
+                                },
+                                scopes: {
+                                    $push: {
+                                        scope: "$_id.scope",
+                                        count: "$count"
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            $group: {
+                                _id: "$_id.year",
+                                months: {
+                                    $push: {
+                                        month: "$_id.month",
+                                        scopes: "$scopes"
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            $sort: { "_id": 1, "months.month": 1 }
                         }
-                    }
-                }
-            },
-            // Finalisierung der Struktur: Gruppierung nach Jahr und Anordnung der Monate je Jahr
-            {
-                $group: {
-                    _id: "$_id.year",
-                    months: {
-                        $push: {
-                            month: "$_id.month",
-                            affiliations: "$affiliations"
+                    ],
+                    byRole: [
+                        {
+                            $match: {
+                                scope: "fh-swf.de"
+                            }
+                        },
+                        {
+                            $group: {
+                                _id: {
+                                    year: "$year",
+                                    month: "$month",
+                                    role: "$roles"
+                                },
+                                count: { $sum: 1 }
+                            }
+                        },
+                        {
+                            $group: {
+                                _id: {
+                                    year: "$_id.year",
+                                    month: "$_id.month"
+                                },
+                                roles: {
+                                    $push: {
+                                        role: "$_id.role",
+                                        count: "$count"
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            $group: {
+                                _id: "$_id.year",
+                                months: {
+                                    $push: {
+                                        month: "$_id.month",
+                                        roles: "$roles"
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            $sort: { "_id": 1, "months.month": 1 }
                         }
-                    }
+                    ]
                 }
-            },
-            // Sortieren der Ergebnisse, zunächst nach Jahr dann innerhalb der Jahre nach Monaten
-            {
-                $sort: { "_id": 1, "months.month": 1 }
             }
         ])
         .toArray();
