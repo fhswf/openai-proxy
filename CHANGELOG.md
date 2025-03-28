@@ -1,3 +1,10 @@
+# [0.14.0](https://github.com/fhswf/openai-proxy/compare/v0.13.1...v0.14.0) (2025-03-28)
+
+
+### Features
+
+* statistic by role and affiliation ([f293de2](https://github.com/fhswf/openai-proxy/commit/f293de2de1a0b74ef187a521932dd13489d26c34))
+
 ## [0.13.1](https://github.com/fhswf/openai-proxy/compare/v0.13.0...v0.13.1) (2025-02-27)
 
 
