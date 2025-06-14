@@ -1,13 +1,14 @@
 {
     "compilerOptions": {
         "outDir": "./dist/",
-        "module": "ES2022",
+        "module": "ESNext",
         "moduleResolution": "Node",
         "esModuleInterop": true,
-        "target": "ES2022",
+        "target": "ESNext",
         "types": [
             "node"
         ],
-        "allowSyntheticDefaultImports": true
+        "allowSyntheticDefaultImports": true,
+        "rewriteRelativeImportExtensions": true
     }
 }
