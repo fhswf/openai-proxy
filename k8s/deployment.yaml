@@ -51,6 +51,11 @@ spec:
                 secretKeyRef:
                   key: api.key
                   name: proxy-secrets
+            - name: RATE_LIMIT
+              valueFrom:
+                configMapKeyRef:
+                  key: api.rate_limit
+                  name: proxy-config
             - name: BASE_URL
               valueFrom:
                 configMapKeyRef:

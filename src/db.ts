@@ -26,7 +26,10 @@ export function logRequest(request) {
  
  */
 export function countRequests() {
-    return db?.collection('requests')
+    if (!db) {
+        return Promise.resolve()
+    }
+    return db.collection('requests')
         .aggregate([
             {
                 $project: {

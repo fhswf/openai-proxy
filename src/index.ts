@@ -4,16 +4,14 @@ dotenv.config();
 import { createLogger, format, transports } from 'winston';
 import express from 'express';
 import proxy from 'express-http-proxy';
+import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
-import { Strategy } from 'openid-client';
 import jwt from 'jsonwebtoken';
 
-import fs from 'fs';
-import https from 'https';
 
-import { initClient, getSigningKey } from './initClient.js';
-import { mongo_connect, logRequest, countRequests } from './db.js';
+import { initClient, getSigningKey } from './initClient.ts';
+import { mongo_connect, logRequest, countRequests } from './db.ts';
 
 const { combine, timestamp, json, errors } = format;
 const logger = createLogger({
@@ -48,7 +46,7 @@ logger.debug('API_URL', API_URL);
 logger.debug('API_KEY', API_KEY);
 logger.debug('BASE_URL', BASE_URL);
 
-
+app.set('trust proxy', 1)
 
 app.use(express.json());
 app.use(cookieParser());
@@ -59,7 +57,22 @@ app.use(cors({ origin: "http://localhost:5173", credentials: true }));
 let client;
 let redirect_uri;
 
+/** 
+ * Add rate limit. 
+ * Default limit is 100 requests per 15 minutes.
+ */
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: Number.parseInt(process.env.RATE_LIMIT || "100"),
+    keyGenerator: (req) => {
+        const key = req['user'] || req.header("X-Real-IP") || req.ip;
+        return key;
+    },
+    standardHeaders: "draft-8",
+    message: 'Too many requests, try again later!'
+});
 
+app.get('/ip', (request, response) => response.send(request.ip))
 
 app.get('/login', async (req, res) => {
     const params = req.query;
@@ -119,21 +132,8 @@ app.get('/callback', async (req, res) => {
         });
 });
 
-app.get('/dashboard', (req, res) => {
-    const promise = countRequests();
-    logger.debug('promise', promise);
-    promise
-        .then(requests => {
-            res.json(requests);
-        })
-        .catch(err => {
-            logger.error('Error: ', err);
-            res.status(500).send('Error: ' + err);
-        });
-});
-
 /** Health check endpoint */
-app.get('/healthz', (req, res) => {
+app.get('/healthz', limiter, (req, res) => {
     // check if db connection is open
     countRequests()
         .then(() => {
@@ -153,6 +153,8 @@ app.get('/healthz', (req, res) => {
 const checkAuth = (req, res, next) => {
 
     let token = req.cookies.token;
+    console.log("token: ", token)
+
     if (!token && req.headers.authorization) {
         token = req.headers.authorization.split(' ')[1];
     }
@@ -215,16 +217,36 @@ const redactHeaders = (req, res, next) => {
     next();
 };
 
-if (!process.env.IGNORE_AUTH) {
+if (process.env.IGNORE_AUTH !== "true") {
     app.use(checkAuth);
     /** redact headers */
     app.use(redactHeaders);
 }
-
+else {
+    console.log("ignoring authorizaton")
+}
 
 app.get('/user', (req, res) => {
     res.send(req['user']);
 });
+
+
+app.use(limiter);
+
+app.get('/dashboard', (req, res) => {
+    const promise = countRequests();
+    logger.debug('promise', promise);
+    promise
+        .then(requests => {
+            res.json(requests);
+        })
+        .catch(err => {
+            logger.error('Error: ', err);
+            res.status(500).send('Error: ' + err);
+        });
+});
+
+
 
 function logResponseBody(req, res, next) {
     let oldWrite = res.write;

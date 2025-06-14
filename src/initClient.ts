@@ -1,6 +1,6 @@
 import { Issuer } from 'openid-client';
 import jwksClient from 'jwks-rsa';
-import { ISSUER, CLIENT_ID, CLIENT_SECRET, REDIRECT_URIS } from './index.js';
+import { ISSUER, CLIENT_ID, CLIENT_SECRET, REDIRECT_URIS } from './index.ts';
 
 export let getSigningKey;
 
