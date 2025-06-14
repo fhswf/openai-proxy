@@ -65,7 +65,7 @@ const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: Number.parseInt(process.env.RATE_LIMIT || "100"),
     keyGenerator: (req) => {
-        const key = req['user'] || req.header("X-Real-IP") || req.ip;
+        const key = req['user']?.email || req.header("X-Real-IP") || req.ip;
         return key;
     },
     standardHeaders: "draft-8",
