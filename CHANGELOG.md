@@ -1,3 +1,10 @@
+## [0.15.1](https://github.com/fhswf/openai-proxy/compare/v0.15.0...v0.15.1) (2025-06-14)
+
+
+### Bug Fixes
+
+* use email as key for rate limit ([5b69d41](https://github.com/fhswf/openai-proxy/commit/5b69d410e9105146b4495360c089be69eaa07f8d))
+
 # [0.15.0](https://github.com/fhswf/openai-proxy/compare/v0.14.0...v0.15.0) (2025-06-14)
 
 
