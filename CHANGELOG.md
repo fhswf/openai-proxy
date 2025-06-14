@@ -1,3 +1,11 @@
+# [0.15.0](https://github.com/fhswf/openai-proxy/compare/v0.14.0...v0.15.0) (2025-06-14)
+
+
+### Features
+
+* enable rate limit for requests ([5da66d6](https://github.com/fhswf/openai-proxy/commit/5da66d6044ec1e0174ab373d26c6488f41325791))
+* enable rate limit for requests ([bacd11c](https://github.com/fhswf/openai-proxy/commit/bacd11c1d6fe2006b74e95b0845fc17e4f29fa50))
+
 # [0.14.0](https://github.com/fhswf/openai-proxy/compare/v0.13.1...v0.14.0) (2025-03-28)
 
 
