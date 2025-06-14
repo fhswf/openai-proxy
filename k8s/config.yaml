@@ -3,6 +3,7 @@ data:
   api.base_url: /openai/ui/index.html
   api.prefix: /v1
   api.url: https://api.openai.com/v1
+  api.rate_limit: 200
   node.extra_ca_certs: |-
     -----BEGIN CERTIFICATE-----
     MIIEMjCCAxqgAwIBAgIBATANBgkqhkiG9w0BAQUFADB7MQswCQYDVQQGEwJHQjEb

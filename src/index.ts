@@ -46,7 +46,7 @@ logger.debug('API_URL', API_URL);
 logger.debug('API_KEY', API_KEY);
 logger.debug('BASE_URL', BASE_URL);
 
-
+app.set('trust proxy', 1)
 
 app.use(express.json());
 app.use(cookieParser());
@@ -66,12 +66,13 @@ const limiter = rateLimit({
     max: Number.parseInt(process.env.RATE_LIMIT || "100"),
     keyGenerator: (req) => {
         const key = req['user'] || req.header("X-Real-IP") || req.ip;
-        console.log("rate-limit: key=%s", key);
         return key;
     },
     standardHeaders: "draft-8",
     message: 'Too many requests, try again later!'
 });
+
+app.get('/ip', (request, response) => response.send(request.ip))
 
 app.get('/login', async (req, res) => {
     const params = req.query;
