@@ -301,6 +301,7 @@ const doProxy = (req, res) => {
 
     const parsingProxy = proxy(API_URL, {
         https: true,
+        limit: '10mb',
         parseReqBody: true,
         proxyReqPathResolver: function (req) {
             const path = req.baseUrl.replace(PREFIX, '/v1');
@@ -331,6 +332,7 @@ const doProxy = (req, res) => {
 
     const rawProxy = proxy(API_URL, {
         https: true,
+        limit: '10mb',
         parseReqBody: false,
         proxyReqPathResolver: function (req) {
             const path = req.baseUrl.replace(PREFIX, '/v1');
