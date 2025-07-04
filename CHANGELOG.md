@@ -1,3 +1,10 @@
+## [0.15.3](https://github.com/fhswf/openai-proxy/compare/v0.15.2...v0.15.3) (2025-07-04)
+
+
+### Bug Fixes
+
+* increase json parse limit ([6fb42de](https://github.com/fhswf/openai-proxy/commit/6fb42de0117dfa897deb95146a20615ff5d3c5c1))
+
 ## [0.15.2](https://github.com/fhswf/openai-proxy/compare/v0.15.1...v0.15.2) (2025-07-04)
 
 
