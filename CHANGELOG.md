@@ -1,3 +1,10 @@
+## [0.15.2](https://github.com/fhswf/openai-proxy/compare/v0.15.1...v0.15.2) (2025-07-04)
+
+
+### Bug Fixes
+
+* increase proxy limit ([d8aa19f](https://github.com/fhswf/openai-proxy/commit/d8aa19f97734588d9b3b7ee71438819139db6a36))
+
 ## [0.15.1](https://github.com/fhswf/openai-proxy/compare/v0.15.0...v0.15.1) (2025-06-14)
 
 
