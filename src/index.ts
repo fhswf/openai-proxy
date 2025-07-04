@@ -48,7 +48,7 @@ logger.debug('BASE_URL', BASE_URL);
 
 app.set('trust proxy', 1)
 
-app.use(express.json());
+app.use(express.json({limit: "10mb"}));
 app.use(cookieParser());
 
 logger.info('enabling cors on all requests');
