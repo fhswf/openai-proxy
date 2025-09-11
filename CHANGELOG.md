@@ -1,3 +1,10 @@
+## [0.15.6](https://github.com/fhswf/openai-proxy/compare/v0.15.5...v0.15.6) (2025-09-11)
+
+
+### Bug Fixes
+
+* specify timeout for probes ([97836b8](https://github.com/fhswf/openai-proxy/commit/97836b8cf7e63650fe305b67d085e5e6d7aa9fb6))
+
 ## [0.15.5](https://github.com/fhswf/openai-proxy/compare/v0.15.4...v0.15.5) (2025-09-11)
 
 
