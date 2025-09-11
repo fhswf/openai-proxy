@@ -1,3 +1,10 @@
+## [0.15.4](https://github.com/fhswf/openai-proxy/compare/v0.15.3...v0.15.4) (2025-09-11)
+
+
+### Bug Fixes
+
+* set replicas to 3 ([6761534](https://github.com/fhswf/openai-proxy/commit/676153439e2f1039c1adc4374cdea84815ed62f5))
+
 ## [0.15.3](https://github.com/fhswf/openai-proxy/compare/v0.15.2...v0.15.3) (2025-07-04)
 
 
