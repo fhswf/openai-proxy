@@ -1,3 +1,10 @@
+## [0.15.5](https://github.com/fhswf/openai-proxy/compare/v0.15.4...v0.15.5) (2025-09-11)
+
+
+### Bug Fixes
+
+* increase resource limits ([3fcec65](https://github.com/fhswf/openai-proxy/commit/3fcec651d1323ddf2f13ed046f70615a82890a24))
+
 ## [0.15.4](https://github.com/fhswf/openai-proxy/compare/v0.15.3...v0.15.4) (2025-09-11)
 
 
