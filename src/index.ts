@@ -48,7 +48,7 @@ logger.debug('BASE_URL', BASE_URL);
 
 app.set('trust proxy', 1)
 
-app.use(express.json({limit: "10mb"}));
+app.use(express.json({ limit: "10mb" }));
 app.use(cookieParser());
 
 logger.info('enabling cors on all requests');
@@ -135,11 +135,14 @@ app.get('/callback', async (req, res) => {
 /** Health check endpoint */
 app.get('/healthz', limiter, (req, res) => {
     // check if db connection is open
+    logger.debug('healthz: checking db connection');
     countRequests()
         .then(() => {
+            logger.debug('db connection ok');
             res.send({ status: 'ok' });
         })
         .catch((err) => {
+            logger.error('db connection error', err);
             res.status(500).send({
                 status: 'error',
                 error: err

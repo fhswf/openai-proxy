@@ -25,10 +25,10 @@ spec:
             - containerPort: 3000
           resources:
             limits:
-              memory: 128Mi
+              memory: 2Gi
               cpu: 500m
             requests:
-              memory: 64Mi
+              memory: 512Mi
               cpu: 250m
           env:
             - name: DEBUG
@@ -92,8 +92,8 @@ spec:
             httpGet:
               path: /healthz
               port: 3000
-            initialDelaySeconds: 5
-            periodSeconds: 10
+            initialDelaySeconds: 30
+            periodSeconds: 30
           volumeMounts:
             - name: ca-certs
               mountPath: /etc/certs
