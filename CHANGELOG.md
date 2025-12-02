@@ -1,3 +1,10 @@
+## [0.15.7](https://github.com/fhswf/openai-proxy/compare/v0.15.6...v0.15.7) (2025-12-02)
+
+
+### Bug Fixes
+
+* do not add 'OpenAI-Beta' header in proxy request options ([8b08a68](https://github.com/fhswf/openai-proxy/commit/8b08a68f86279d1a2c6a4936f1fc08168b84035b))
+
 ## [0.15.6](https://github.com/fhswf/openai-proxy/compare/v0.15.5...v0.15.6) (2025-09-11)
 
 
