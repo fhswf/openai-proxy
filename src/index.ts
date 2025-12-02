@@ -321,7 +321,7 @@ const doProxy = (req, res) => {
         },
         proxyReqOptDecorator: function (proxyReqOpts, srcReq) {
             proxyReqOpts.headers['authorization'] = `Bearer ${API_KEY}`;
-            proxyReqOpts.headers['OpenAI-Beta'] = 'assistants=v2';
+            //proxyReqOpts.headers['OpenAI-Beta'] = 'assistants=v2';
             return proxyReqOpts;
         },
         proxyReqBodyDecorator: function (bodyContent, srcReq) {
@@ -352,7 +352,7 @@ const doProxy = (req, res) => {
         },
         proxyReqOptDecorator: function (proxyReqOpts, srcReq) {
             proxyReqOpts.headers['authorization'] = `Bearer ${API_KEY}`;
-            proxyReqOpts.headers['OpenAI-Beta'] = 'assistants=v2';
+            //proxyReqOpts.headers['OpenAI-Beta'] = 'assistants=v2';
             return proxyReqOpts;
         },
     })
