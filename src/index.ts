@@ -11,7 +11,7 @@ import jwt from 'jsonwebtoken';
 
 
 import { initClient, getSigningKey } from './initClient.ts';
-import { mongo_connect, logRequest, countRequests } from './db.ts';
+import { mongo_connect, logRequest, countRequests, checkConnection } from './db.ts';
 
 const { combine, timestamp, json, errors } = format;
 const logger = createLogger({
@@ -136,7 +136,7 @@ app.get('/callback', async (req, res) => {
 app.get('/healthz', limiter, (req, res) => {
     // check if db connection is open
     logger.debug('healthz: checking db connection');
-    countRequests()
+    checkConnection()
         .then(() => {
             logger.debug('db connection ok');
             res.send({ status: 'ok' });

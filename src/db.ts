@@ -9,6 +9,7 @@ let db: Db | null = null;
 export async function mongo_connect() {
     await mongo.connect();
     db = mongo.db('accounting');
+    await db.collection('requests').createIndex({ "user.affiliations": 1, "date": 1 });
     console.log('Connected to mongodb');
 }
 
@@ -18,6 +19,17 @@ export async function mongo_connect() {
  */
 export function logRequest(request) {
     db?.collection('requests').insertOne(request);
+}
+
+/**
+ * Check if the database connection is alive
+ * @returns {Promise<any>}
+ */
+export function checkConnection() {
+    if (!db) {
+        return Promise.reject(new Error('Database not connected'));
+    }
+    return db.command({ ping: 1 });
 }
 
 /**
@@ -33,6 +45,7 @@ export function countRequests() {
         .aggregate([
             {
                 $project: {
+                    _id: 0,
                     affiliations: { $objectToArray: "$user.affiliations" },
                     month: { $month: { $toDate: "$date" } },
                     year: { $year: { $toDate: "$date" } },
