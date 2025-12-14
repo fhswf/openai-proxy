@@ -1,3 +1,10 @@
+# [0.16.0](https://github.com/fhswf/openai-proxy/compare/v0.15.7...v0.16.0) (2025-12-14)
+
+
+### Features
+
+* used less complex health check to reduce database load ([bb62cf7](https://github.com/fhswf/openai-proxy/commit/bb62cf74b5cde398ffad41584f38bb46b4b30b79))
+
 ## [0.15.7](https://github.com/fhswf/openai-proxy/compare/v0.15.6...v0.15.7) (2025-12-02)
 
 
