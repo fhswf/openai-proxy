@@ -4,6 +4,13 @@ metadata:
   annotations:
     kompose.cmd: kompose convert
     kompose.version: 1.26.0 (40646f47)
+    gatus.home-operations.com/enabled: "true"
+    gatus.home-operations.com/endpoint: |
+      group: "K!mpuls-Chatbot"
+      interval: 1m
+      conditions:
+        - "[STATUS] == 200"
+        - "[CERTIFICATE_EXPIRATION] > 72h"
   labels:
     io.kompose.service: proxy
   name: proxy
@@ -23,6 +30,13 @@ kind: Service
 metadata:
   name: mongodb
   namespace: openai-proxy
+  annotations:
+    gatus.home-operations.com/enabled: "true"
+    gatus.home-operations.com/endpoint: |
+      group: "K!mpuls-Chatbot"
+      interval: 1m
+      conditions:
+        - "[CONNECTED] == true"
 spec:
   ports:
     - name: "27017"
