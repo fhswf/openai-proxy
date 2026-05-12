@@ -1,3 +1,16 @@
+# [0.17.0](https://github.com/fhswf/openai-proxy/compare/v0.16.0...v0.17.0) (2026-05-12)
+
+
+### Bug Fixes
+
+* trigger release ([220fb04](https://github.com/fhswf/openai-proxy/commit/220fb043670d7ab2f89918316418e1050fd7e1b9))
+
+
+### Features
+
+* add Gatus monitoring annotations to Ingress and Services ([a769ff6](https://github.com/fhswf/openai-proxy/commit/a769ff6316109c216ff1b95c71537f2c6ef5929e))
+* update service monitoring conditions ([13abedd](https://github.com/fhswf/openai-proxy/commit/13abedd84b0294a3a1a1b504023a43a85af56016))
+
 # [0.16.0](https://github.com/fhswf/openai-proxy/compare/v0.15.7...v0.16.0) (2025-12-14)
 
 
