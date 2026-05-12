@@ -24,6 +24,14 @@ kind: IngressRoute
 metadata:
   name: proxy-login.ki.fh-swf.de
   namespace: openai-proxy
+  annotations:
+    gatus.home-operations.com/enabled: "true"
+    gatus.home-operations.com/endpoint: |
+      group: "K!mpuls-Chatbot"
+      interval: 1m
+      conditions:
+        - "[STATUS] == 200"
+        - "[CERTIFICATE_EXPIRATION] > 72h"
 spec:
   entryPoints:
     - web-secure
@@ -50,6 +58,13 @@ metadata:
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
     traefik.ingress.kubernetes.io/router.tls.certresolver: letsencrypt
     traefik.ingress.kubernetes.io/router.middlewares: openai-proxy-api-stripprefix@kubernetescrd
+    gatus.home-operations.com/enabled: "true"
+    gatus.home-operations.com/endpoint: |
+      group: "K!mpuls-Chatbot"
+      interval: 1m
+      conditions:
+        - "[STATUS] == 200"
+        - "[CERTIFICATE_EXPIRATION] > 72h"
   name: openai.ki.fh-swf.de-backend
   namespace: openai-proxy
 spec:
@@ -73,6 +88,13 @@ metadata:
     traefik.ingress.kubernetes.io/router.priority: "100"
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
     traefik.ingress.kubernetes.io/router.tls.certresolver: letsencrypt
+    gatus.home-operations.com/enabled: "true"
+    gatus.home-operations.com/endpoint: |
+      group: "K!mpuls-Chatbot"
+      interval: 1m
+      conditions:
+        - "[STATUS] == 200"
+        - "[CERTIFICATE_EXPIRATION] > 72h"
   name: openai.fh-swf.cloud-backend
   namespace: openai-proxy
 spec:
