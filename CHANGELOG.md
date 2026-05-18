@@ -1,3 +1,10 @@
+## [0.18.2](https://github.com/fhswf/openai-proxy/compare/v0.18.1...v0.18.2) (2026-05-18)
+
+
+### Bug Fixes
+
+* handle database connection in logRequest function and improve error logging ([bc637b2](https://github.com/fhswf/openai-proxy/commit/bc637b23e3bc0a5fc78879c7b8739e732ec95dd1))
+
 ## [0.18.1](https://github.com/fhswf/openai-proxy/compare/v0.18.0...v0.18.1) (2026-05-18)
 
 
