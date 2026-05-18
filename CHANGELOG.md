@@ -1,3 +1,10 @@
+# [0.18.0](https://github.com/fhswf/openai-proxy/compare/v0.17.0...v0.18.0) (2026-05-18)
+
+
+### Features
+
+* implement dynamic cookie domain handling for login and logout ([0b4c54d](https://github.com/fhswf/openai-proxy/commit/0b4c54d6a50950b3f99258bf225f44ee9214973b))
+
 # [0.17.0](https://github.com/fhswf/openai-proxy/compare/v0.16.0...v0.17.0) (2026-05-12)
 
 
