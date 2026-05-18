@@ -1,3 +1,10 @@
+## [0.18.1](https://github.com/fhswf/openai-proxy/compare/v0.18.0...v0.18.1) (2026-05-18)
+
+
+### Bug Fixes
+
+* enhance getCookieDomain function to handle string array input ([627b969](https://github.com/fhswf/openai-proxy/commit/627b96942aa6cea0adbca02eb68f3db047c3c46b))
+
 # [0.18.0](https://github.com/fhswf/openai-proxy/compare/v0.17.0...v0.18.0) (2026-05-18)
 
 
