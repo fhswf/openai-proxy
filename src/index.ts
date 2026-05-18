@@ -20,6 +20,43 @@ const logger = createLogger({
     transports: [new transports.Console()],
 });
 
+const serializeError = (err) => {
+    if (err instanceof Error) {
+        return {
+            message: err.message,
+            name: err.name,
+            stack: err.stack,
+        };
+    }
+
+    return err;
+};
+
+const logRequestError = (message, err, req?) => {
+    logger.error(message, {
+        error: serializeError(err),
+        request: req ? {
+            method: req.method,
+            originalUrl: req.originalUrl,
+            path: req.path,
+            query: req.query,
+            host: req.headers.host,
+            forwardedHost: req.headers['x-forwarded-host'],
+            forwardedProto: req.headers['x-forwarded-proto'],
+            forwardedPrefix: req.headers['x-forwarded-prefix'],
+        } : undefined,
+    });
+};
+
+process.on('unhandledRejection', (reason) => {
+    logger.error('Unhandled promise rejection', { error: serializeError(reason) });
+});
+
+process.on('uncaughtException', (err) => {
+    logger.error('Uncaught exception', { error: serializeError(err) });
+    process.exit(1);
+});
+
 const app = express();
 // don't advertise that we are using express
 app.set('x-powered-by', false);
@@ -55,19 +92,32 @@ logger.info('enabling cors on all requests');
 app.use(cors({ origin: "http://localhost:5173", credentials: true }));
 
 let client;
-let redirect_uri;
+
+const asyncRoute = (handler) => (req, res, next) => {
+    Promise.resolve()
+        .then(() => handler(req, res, next))
+        .catch(next);
+};
+
+const getFirstHeaderValue = (header?: string | string[]) => {
+    const value = Array.isArray(header) ? header[0] : header;
+    return value
+        ?.split(',')
+        .map(part => part.trim())
+        .find(Boolean);
+};
 
 const getCookieDomain = (host?: string | string[]) => {
-    if (!host) {
-        return undefined;
-    }
-
-    const hostValue = Array.isArray(host) ? host[0] : host;
+    const hostValue = getFirstHeaderValue(host);
     if (!hostValue) {
         return undefined;
     }
 
-    const hostname = hostValue.split(':')[0].toLowerCase();
+    const hostname = hostValue
+        .replace(/^\[/, '')
+        .replace(/\](:\d+)?$/, '')
+        .split(':')[0]
+        .toLowerCase();
     if (hostname === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
         return undefined;
     }
@@ -78,6 +128,18 @@ const getCookieDomain = (host?: string | string[]) => {
     }
 
     return parts.slice(-2).join('.');
+};
+
+const getCallbackUrl = (req) => {
+    const proto = getFirstHeaderValue(req.headers['x-forwarded-proto']) || req.protocol;
+    const host = getFirstHeaderValue(req.headers['x-forwarded-host']) || req.headers.host;
+    const prefix = getFirstHeaderValue(req.headers['x-forwarded-prefix']) || '';
+
+    if (!host) {
+        throw new Error('Cannot build callback URL without a Host or X-Forwarded-Host header');
+    }
+
+    return new URL(`${proto}://${host}${prefix}/callback`);
 };
 
 /** 
@@ -97,14 +159,9 @@ const limiter = rateLimit({
 
 app.get('/ip', (request, response) => response.send(request.ip))
 
-app.get('/login', async (req, res) => {
-    const params = req.query;
-
-    const proto = req.headers['x-forwarded-proto'] || req.protocol;
-    const host = req.headers['x-forwarded-host'] || req.headers.host;
-    const prefix = req.headers['x-forwarded-prefix'] || '';
-
-    redirect_uri = new URL(proto + '://' + host + prefix + '/callback');
+app.get('/login', asyncRoute(async (req, res) => {
+    const redirect_uri = getCallbackUrl(req);
+    logger.debug('login callback URL', { redirect_uri: redirect_uri.toString() });
 
     const authorizationUrl = client.authorizationUrl({
         scope: 'openid profile email',
@@ -120,9 +177,9 @@ app.get('/login', async (req, res) => {
         ...(loginCookieDomain ? { domain: loginCookieDomain } : {}),
     });
     res.redirect(authorizationUrl);
-});
+}));
 
-app.get('/logout', (req, res) => {
+app.get('/logout', asyncRoute((req, res) => {
     let token = req.cookies.token;
     if (!token && req.headers.authorization) {
         token = req.headers.authorization.split(' ')[1];
@@ -144,34 +201,40 @@ app.get('/logout', (req, res) => {
     else {
         res.redirect(BASE_URL);
     }
-});
+}));
 
-app.get('/callback', async (req, res) => {
-    const params = client.callbackParams(req);
-    logger.debug('req.headers', req.headers);
-    logger.debug('req: ', req.protocol, req.hostname, req.baseUrl, req.url, req.originalUrl, req.path, req.query);
+app.get('/callback', asyncRoute(async (req, res) => {
+    try {
+        const redirect_uri = getCallbackUrl(req);
+        const params = client.callbackParams(req);
+        logger.debug('req.headers', req.headers);
+        logger.debug('req: ', req.protocol, req.hostname, req.baseUrl, req.url, req.originalUrl, req.path, req.query);
 
-    client.callback(redirect_uri.toString(), params, { code_verifier: client.code_verifier })
-        .then(tokenSet => {
-            const user = jwt.decode(tokenSet.id_token);
-            const token = tokenSet.id_token;
-            const callbackCookieDomain = getCookieDomain(req.headers['x-forwarded-host'] || req.headers.host);
+        const tokenSet = await client.callback(redirect_uri.toString(), params, { code_verifier: client.code_verifier });
+        const user = jwt.decode(tokenSet.id_token);
+        logger.debug('callback user', user);
+        const token = tokenSet.id_token;
+        const callbackCookieDomain = getCookieDomain(req.headers['x-forwarded-host'] || req.headers.host);
 
-            res.cookie('token', token, {
-                maxAge: 86400000,
-                httpOnly: true,
-                secure: true,
-                sameSite: 'lax',
-                ...(callbackCookieDomain ? { domain: callbackCookieDomain } : {}),
-            });
-            const return_url = req.cookies.return_url || "/";
-            res.redirect(return_url);
-        })
-        .catch(err => {
-            logger.debug('error', err);
-            res.status(400).send('Error: ' + err);
+        res.cookie('token', token, {
+            maxAge: 86400000,
+            httpOnly: true,
+            secure: true,
+            sameSite: 'lax',
+            ...(callbackCookieDomain ? { domain: callbackCookieDomain } : {}),
         });
-});
+        const return_url = req.cookies.return_url || "/";
+        res.redirect(return_url);
+    }
+    catch (err) {
+        logRequestError('OIDC callback failed', err, req);
+        if (res.headersSent) {
+            throw err;
+        }
+
+        res.status(400).send('Error: ' + (err instanceof Error ? err.message : err));
+    }
+}));
 
 /** Health check endpoint */
 app.get('/healthz', limiter, (req, res) => {
@@ -333,7 +396,8 @@ function logResponseBody(req, res, next) {
             organization: headers['openai-organization'],
             date: Date.now(),
         };
-        logRequest(request);
+        logRequest(request)
+            .catch(err => logRequestError('Failed to log request', err, req));
     });
 
     next();
@@ -407,6 +471,17 @@ const doProxy = (req, res) => {
 
 app.use(`${PREFIX}*`, doProxy);
 
+app.use((err, req, res, next) => {
+    logRequestError('Unhandled request error', err, req);
+
+    if (res.headersSent) {
+        next(err);
+        return;
+    }
+
+    res.status(500).send('Internal server error');
+});
+
 
 try {
     if (!process.env.IGNORE_DB) {
@@ -424,5 +499,3 @@ catch (err) {
     logger.error('Error: ', err);
     process.exit(1);
 };
-
-

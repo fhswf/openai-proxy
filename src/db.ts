@@ -18,7 +18,11 @@ export async function mongo_connect() {
  * @param {*} request 
  */
 export function logRequest(request) {
-    db?.collection('requests').insertOne(request);
+    if (!db) {
+        return Promise.resolve();
+    }
+
+    return db.collection('requests').insertOne(request);
 }
 
 /**

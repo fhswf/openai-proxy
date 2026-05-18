@@ -16,6 +16,11 @@ export function initClient() {
             console.log(_client);
             getSigningKey = (header, callback) => {
                 _client.getSigningKey(header.kid, function (err, key) {
+                    if (err || !key) {
+                        callback(err || new Error(`Signing key not found for kid ${header.kid}`));
+                        return;
+                    }
+
                     let signingKey = key.getPublicKey();
                     callback(null, signingKey);
                 });
