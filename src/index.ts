@@ -57,12 +57,17 @@ app.use(cors({ origin: "http://localhost:5173", credentials: true }));
 let client;
 let redirect_uri;
 
-const getCookieDomain = (host?: string) => {
+const getCookieDomain = (host?: string | string[]) => {
     if (!host) {
         return undefined;
     }
 
-    const hostname = host.split(':')[0].toLowerCase();
+    const hostValue = Array.isArray(host) ? host[0] : host;
+    if (!hostValue) {
+        return undefined;
+    }
+
+    const hostname = hostValue.split(':')[0].toLowerCase();
     if (hostname === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
         return undefined;
     }
