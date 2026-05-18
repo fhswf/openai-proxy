@@ -57,6 +57,24 @@ app.use(cors({ origin: "http://localhost:5173", credentials: true }));
 let client;
 let redirect_uri;
 
+const getCookieDomain = (host?: string) => {
+    if (!host) {
+        return undefined;
+    }
+
+    const hostname = host.split(':')[0].toLowerCase();
+    if (hostname === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
+        return undefined;
+    }
+
+    const parts = hostname.split('.');
+    if (parts.length < 2) {
+        return undefined;
+    }
+
+    return parts.slice(-2).join('.');
+};
+
 /** 
  * Add rate limit. 
  * Default limit is 100 requests per 15 minutes.
@@ -88,7 +106,14 @@ app.get('/login', async (req, res) => {
         redirect_uri: redirect_uri.toString(),
     });
 
-    res.cookie("return_url", req.query.return_url || req.headers.referer, { maxAge: 120000, httpOnly: true, secure: true, sameSite: 'none' });
+    const loginCookieDomain = getCookieDomain(req.headers['x-forwarded-host'] || req.headers.host);
+    res.cookie("return_url", req.query.return_url || req.headers.referer, {
+        maxAge: 120000,
+        httpOnly: true,
+        secure: true,
+        sameSite: 'lax',
+        ...(loginCookieDomain ? { domain: loginCookieDomain } : {}),
+    });
     res.redirect(authorizationUrl);
 });
 
@@ -104,7 +129,11 @@ app.get('/logout', (req, res) => {
             client_id: CLIENT_ID,
             id_token_hint: token
         });
-        res.clearCookie('token')
+        const logoutCookieDomain = getCookieDomain(req.headers['x-forwarded-host'] || req.headers.host);
+        res.clearCookie('token', {
+            sameSite: 'lax',
+            ...(logoutCookieDomain ? { domain: logoutCookieDomain } : {}),
+        });
         res.redirect(endSessionUrl)
     }
     else {
@@ -121,8 +150,15 @@ app.get('/callback', async (req, res) => {
         .then(tokenSet => {
             const user = jwt.decode(tokenSet.id_token);
             const token = tokenSet.id_token;
+            const callbackCookieDomain = getCookieDomain(req.headers['x-forwarded-host'] || req.headers.host);
 
-            res.cookie('token', token, { maxAge: 86400000, httpOnly: true, secure: true, sameSite: 'none' });
+            res.cookie('token', token, {
+                maxAge: 86400000,
+                httpOnly: true,
+                secure: true,
+                sameSite: 'lax',
+                ...(callbackCookieDomain ? { domain: callbackCookieDomain } : {}),
+            });
             const return_url = req.cookies.return_url || "/";
             res.redirect(return_url);
         })
