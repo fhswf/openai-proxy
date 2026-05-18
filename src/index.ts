@@ -107,6 +107,35 @@ const getFirstHeaderValue = (header?: string | string[]) => {
         .find(Boolean);
 };
 
+const getForwardedProto = (req) => {
+    const proto = getFirstHeaderValue(req.headers['x-forwarded-proto']) || req.protocol;
+    const normalizedProto = proto.toLowerCase();
+
+    if (normalizedProto !== 'http' && normalizedProto !== 'https') {
+        throw new Error(`Cannot build callback URL with invalid protocol: ${proto}`);
+    }
+
+    return normalizedProto;
+};
+
+const getForwardedHost = (req) => {
+    const host = getFirstHeaderValue(req.headers['x-forwarded-host']) || getFirstHeaderValue(req.headers.host);
+    if (!host) {
+        throw new Error('Cannot build callback URL without a Host or X-Forwarded-Host header');
+    }
+
+    return host;
+};
+
+const getForwardedPrefix = (req) => {
+    const prefix = getFirstHeaderValue(req.headers['x-forwarded-prefix']) || '';
+    if (!prefix) {
+        return '';
+    }
+
+    return `/${prefix.replace(/^\/+|\/+$/g, '')}`;
+};
+
 const getCookieDomain = (host?: string | string[]) => {
     const hostValue = getFirstHeaderValue(host);
     if (!hostValue) {
@@ -131,15 +160,13 @@ const getCookieDomain = (host?: string | string[]) => {
 };
 
 const getCallbackUrl = (req) => {
-    const proto = getFirstHeaderValue(req.headers['x-forwarded-proto']) || req.protocol;
-    const host = getFirstHeaderValue(req.headers['x-forwarded-host']) || req.headers.host;
-    const prefix = getFirstHeaderValue(req.headers['x-forwarded-prefix']) || '';
+    const proto = getForwardedProto(req);
+    const host = getForwardedHost(req);
+    const prefix = getForwardedPrefix(req);
+    const callbackUrl = new URL(`${proto}://${host}`);
+    callbackUrl.pathname = `${prefix}/callback`;
 
-    if (!host) {
-        throw new Error('Cannot build callback URL without a Host or X-Forwarded-Host header');
-    }
-
-    return new URL(`${proto}://${host}${prefix}/callback`);
+    return callbackUrl;
 };
 
 /** 
