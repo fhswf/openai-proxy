@@ -1,3 +1,10 @@
+# [0.19.0](https://github.com/fhswf/openai-proxy/compare/v0.18.2...v0.19.0) (2026-05-18)
+
+
+### Features
+
+* add functions to handle forwarded headers for callback URL construction ([2b32afc](https://github.com/fhswf/openai-proxy/commit/2b32afc6e07757f4aeeda31df81fb2eabf72659d))
+
 ## [0.18.2](https://github.com/fhswf/openai-proxy/compare/v0.18.1...v0.18.2) (2026-05-18)
 
 
