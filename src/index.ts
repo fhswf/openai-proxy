@@ -70,6 +70,12 @@ const API_URL = process.env.API_URL;
 const API_KEY = process.env.API_KEY;
 const BASE_URL = process.env.BASE_URL;
 const POST_LOGOUT_REDIRECT_URI = process.env.POST_LOGOUT_REDIRECT_URI || "https://ki.fh-swf.de";
+const LEGACY_COOKIE_DOMAINS = (process.env.LEGACY_COOKIE_DOMAINS || '')
+    .split(',')
+    .map(domain => domain.trim())
+    .filter(Boolean);
+const TOKEN_COOKIE_NAME = 'token';
+const RETURN_URL_COOKIE_NAME = 'return_url';
 
 
 // log config values to console
@@ -136,17 +142,31 @@ const getForwardedPrefix = (req) => {
     return `/${prefix.replace(/^\/+|\/+$/g, '')}`;
 };
 
-const getCookieDomain = (host?: string | string[]) => {
+const getHostname = (host?: string | string[]) => {
     const hostValue = getFirstHeaderValue(host);
     if (!hostValue) {
         return undefined;
     }
 
-    const hostname = hostValue
+    return hostValue
         .replace(/^\[/, '')
         .replace(/\](:\d+)?$/, '')
         .split(':')[0]
         .toLowerCase();
+};
+
+const isCookieDomainCandidate = (hostname?: string) => {
+    return Boolean(hostname)
+        && hostname !== 'localhost'
+        && !/^\d+\.\d+\.\d+\.\d+$/.test(hostname);
+};
+
+const getCookieDomain = (host?: string | string[]) => {
+    const hostname = getHostname(host);
+    if (!hostname) {
+        return undefined;
+    }
+
     if (hostname === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
         return undefined;
     }
@@ -157,6 +177,125 @@ const getCookieDomain = (host?: string | string[]) => {
     }
 
     return parts.slice(-2).join('.');
+};
+
+const getRequestCookieDomains = (req) => {
+    const host = req.headers['x-forwarded-host'] || req.headers.host;
+    const hostname = getHostname(host);
+    const cookieDomain = getCookieDomain(host);
+
+    return Array.from(new Set([
+        cookieDomain,
+        isCookieDomainCandidate(hostname) ? hostname : undefined,
+        ...LEGACY_COOKIE_DOMAINS,
+    ].filter(Boolean)));
+};
+
+const clearCookieVariants = (req, res, name) => {
+    const baseOptions = {
+        path: '/',
+        sameSite: 'lax',
+        secure: true,
+    };
+
+    res.clearCookie(name, baseOptions);
+    getRequestCookieDomains(req).forEach((domain) => {
+        res.clearCookie(name, {
+            ...baseOptions,
+            domain,
+        });
+    });
+};
+
+const getCookieValues = (req, name) => {
+    const header = Array.isArray(req.headers.cookie)
+        ? req.headers.cookie.join('; ')
+        : req.headers.cookie;
+
+    if (!header) {
+        return [];
+    }
+
+    return header
+        .split(';')
+        .map(part => part.trim())
+        .reduce((values, part) => {
+            const separatorIndex = part.indexOf('=');
+            if (separatorIndex === -1) {
+                return values;
+            }
+
+            const key = part.slice(0, separatorIndex).trim();
+            if (key !== name) {
+                return values;
+            }
+
+            const value = part.slice(separatorIndex + 1);
+            try {
+                values.push(decodeURIComponent(value));
+            }
+            catch {
+                values.push(value);
+            }
+
+            return values;
+        }, []);
+};
+
+const getAuthorizationToken = (req) => {
+    const authorization = getFirstHeaderValue(req.headers.authorization);
+    if (!authorization) {
+        return undefined;
+    }
+
+    const [scheme, token] = authorization.split(/\s+/, 2);
+    return scheme?.toLowerCase() === 'bearer' ? token : undefined;
+};
+
+const getTokenCandidates = (req) => {
+    return Array.from(new Set([
+        ...getCookieValues(req, TOKEN_COOKIE_NAME),
+        req.cookies[TOKEN_COOKIE_NAME],
+        getAuthorizationToken(req),
+    ].filter(Boolean)));
+};
+
+const setTokenCookie = (req, res, token) => {
+    const callbackCookieDomain = getCookieDomain(req.headers['x-forwarded-host'] || req.headers.host);
+
+    res.cookie(TOKEN_COOKIE_NAME, token, {
+        maxAge: 86400000,
+        httpOnly: true,
+        secure: true,
+        sameSite: 'lax',
+        path: '/',
+        ...(callbackCookieDomain ? { domain: callbackCookieDomain } : {}),
+    });
+};
+
+const verifyTokenCandidates = (tokens, callback) => {
+    let lastError;
+
+    const verifyNext = (index) => {
+        const token = tokens[index];
+        if (!token) {
+            callback(lastError);
+            return;
+        }
+
+        jwt.verify(token, getSigningKey, { algorithms: ['RS256'] }, (err, user) => {
+            if (!err) {
+                callback(null, user, token);
+                return;
+            }
+
+            lastError = err;
+            logger.debug('token candidate invalid', { index, error: serializeError(err) });
+            verifyNext(index + 1);
+        });
+    };
+
+    verifyNext(0);
 };
 
 const getCallbackUrl = (req) => {
@@ -196,32 +335,29 @@ app.get('/login', asyncRoute(async (req, res) => {
     });
 
     const loginCookieDomain = getCookieDomain(req.headers['x-forwarded-host'] || req.headers.host);
-    res.cookie("return_url", req.query.return_url || req.headers.referer, {
+    clearCookieVariants(req, res, RETURN_URL_COOKIE_NAME);
+    res.cookie(RETURN_URL_COOKIE_NAME, req.query.return_url || req.headers.referer, {
         maxAge: 120000,
         httpOnly: true,
         secure: true,
         sameSite: 'lax',
+        path: '/',
         ...(loginCookieDomain ? { domain: loginCookieDomain } : {}),
     });
     res.redirect(authorizationUrl);
 }));
 
 app.get('/logout', asyncRoute((req, res) => {
-    let token = req.cookies.token;
-    if (!token && req.headers.authorization) {
-        token = req.headers.authorization.split(' ')[1];
-    }
+    const token = getTokenCandidates(req)[0];
     logger.debug('token', token);
+    clearCookieVariants(req, res, TOKEN_COOKIE_NAME);
+    clearCookieVariants(req, res, RETURN_URL_COOKIE_NAME);
+
     if (token) {
         const endSessionUrl = client.endSessionUrl({
             post_logout_redirect_uri: POST_LOGOUT_REDIRECT_URI,
             client_id: CLIENT_ID,
             id_token_hint: token
-        });
-        const logoutCookieDomain = getCookieDomain(req.headers['x-forwarded-host'] || req.headers.host);
-        res.clearCookie('token', {
-            sameSite: 'lax',
-            ...(logoutCookieDomain ? { domain: logoutCookieDomain } : {}),
         });
         res.redirect(endSessionUrl)
     }
@@ -241,16 +377,11 @@ app.get('/callback', asyncRoute(async (req, res) => {
         const user = jwt.decode(tokenSet.id_token);
         logger.debug('callback user', user);
         const token = tokenSet.id_token;
-        const callbackCookieDomain = getCookieDomain(req.headers['x-forwarded-host'] || req.headers.host);
 
-        res.cookie('token', token, {
-            maxAge: 86400000,
-            httpOnly: true,
-            secure: true,
-            sameSite: 'lax',
-            ...(callbackCookieDomain ? { domain: callbackCookieDomain } : {}),
-        });
-        const return_url = req.cookies.return_url || "/";
+        clearCookieVariants(req, res, TOKEN_COOKIE_NAME);
+        setTokenCookie(req, res, token);
+        const return_url = getCookieValues(req, RETURN_URL_COOKIE_NAME).at(-1) || req.cookies[RETURN_URL_COOKIE_NAME] || "/";
+        clearCookieVariants(req, res, RETURN_URL_COOKIE_NAME);
         res.redirect(return_url);
     }
     catch (err) {
@@ -286,23 +417,25 @@ app.get('/healthz', limiter, (req, res) => {
  */
 const checkAuth = (req, res, next) => {
 
-    let token = req.cookies.token;
-    console.log("token: ", token)
+    const tokenCandidates = getTokenCandidates(req);
+    logger.debug('token candidates', { count: tokenCandidates.length });
 
-    if (!token && req.headers.authorization) {
-        token = req.headers.authorization.split(' ')[1];
-    }
-
-    if (!token) {
+    if (tokenCandidates.length === 0) {
         return res.status(401).json({ message: 'Token not found' });
     }
 
-    jwt.verify(token, getSigningKey, { algorithms: ['RS256'] }, (err, user) => {
+    verifyTokenCandidates(tokenCandidates, (err, user, token) => {
         if (err) {
             logger.debug('err', err);
+            clearCookieVariants(req, res, TOKEN_COOKIE_NAME);
             return res.status(401).json({ message: 'Invalid token' });
         }
         logger.debug('decoded', user);
+
+        if (tokenCandidates.length > 1 || token !== tokenCandidates[0]) {
+            clearCookieVariants(req, res, TOKEN_COOKIE_NAME);
+            setTokenCookie(req, res, token);
+        }
 
         try {
             let affiliations = {};
