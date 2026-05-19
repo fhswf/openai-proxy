@@ -1,3 +1,10 @@
+# [0.20.0](https://github.com/fhswf/openai-proxy/compare/v0.19.0...v0.20.0) (2026-05-19)
+
+
+### Features
+
+* implement cookie handling and token management for improved security ([406b22c](https://github.com/fhswf/openai-proxy/commit/406b22c7038da03df207a8764337942ff4ce22c4))
+
 # [0.19.0](https://github.com/fhswf/openai-proxy/compare/v0.18.2...v0.19.0) (2026-05-18)
 
 
