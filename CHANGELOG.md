@@ -1,3 +1,10 @@
+# [0.21.0](https://github.com/fhswf/openai-proxy/compare/v0.20.0...v0.21.0) (2026-05-28)
+
+
+### Features
+
+* extend database aggregation with (anonymized) user-specific request counts. ([f9bd934](https://github.com/fhswf/openai-proxy/commit/f9bd934c0bb023d46efdcbc6d902fbaaa5a5e4f3))
+
 # [0.20.0](https://github.com/fhswf/openai-proxy/compare/v0.19.0...v0.20.0) (2026-05-19)
 
 
