@@ -49,7 +49,8 @@ export function countRequests() {
         .aggregate([
             {
                 $project: {
-                    _id: 0,
+                    _id: 1,
+                    email: "$user.email",
                     affiliations: { $objectToArray: "$user.affiliations" },
                     month: { $month: { $toDate: "$date" } },
                     year: { $year: { $toDate: "$date" } },
@@ -60,6 +61,8 @@ export function countRequests() {
             },
             {
                 $project: {
+                    _id: 1,
+                    email: 1,
                     scope: "$affiliations.k",
                     roles: "$affiliations.v",
                     month: 1,
@@ -160,7 +163,39 @@ export function countRequests() {
                         {
                             $sort: { "_id": 1, "months.month": 1 }
                         }
+                    ],
+                    byUser: [
+                        {
+                            $group: {
+                                _id: {
+                                    requestId: "$_id",
+                                    email: "$email"
+                                }
+                            }
+                        },
+                        {
+                            $group: {
+                                _id: "$_id.email",
+                                count: { $sum: 1 }
+                            }
+                        },
+                        {
+                            $sort: { count: -1 }
+                        },
+                        {
+                            $group: {
+                                _id: null,
+                                counts: { $push: "$count" }
+                            }
+                        }
                     ]
+                }
+            },
+            {
+                $project: {
+                    byScope: 1,
+                    byRole: 1,
+                    byUser: { $ifNull: [ { $arrayElemAt: ["$byUser.counts", 0] }, [] ] }
                 }
             }
         ])
