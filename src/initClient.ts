@@ -28,7 +28,7 @@ export function initClient() {
             return new issuer.Client({
                 client_id: CLIENT_ID,
                 client_secret: CLIENT_SECRET,
-                redirect_uris: [REDIRECT_URIS],
+                redirect_uris: REDIRECT_URIS,
                 response_types: ['code']
             });
         });

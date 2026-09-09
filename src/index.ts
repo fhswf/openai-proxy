@@ -63,13 +63,35 @@ app.set('x-powered-by', false);
 
 export const CLIENT_ID = process.env.CLIENT_ID;
 export const CLIENT_SECRET = process.env.CLIENT_SECRET;
-export const REDIRECT_URIS = JSON.parse(process.env.REDIRECT_URIS || '["http://localhost:3000/callback"]');
+const parseList = (value: string | undefined, fallback: string[] = []) => {
+    if (!value) {
+        return fallback;
+    }
+
+    try {
+        const parsed = JSON.parse(value);
+        if (Array.isArray(parsed)) {
+            return parsed.map(String).map(item => item.trim()).filter(Boolean);
+        }
+    }
+    catch {
+        // Also accept a comma-separated value for easier deployment configuration.
+    }
+
+    return value.split(',').map(item => item.trim()).filter(Boolean);
+};
+
+export const REDIRECT_URIS = parseList(
+    process.env.REDIRECT_URIS,
+    ['http://localhost:3000/callback'],
+);
 export const ISSUER = process.env.ISSUER;
 const PREFIX = process.env.API_PREFIX || '/api';
 const API_URL = process.env.API_URL;
 const API_KEY = process.env.API_KEY;
 const BASE_URL = process.env.BASE_URL;
 const POST_LOGOUT_REDIRECT_URI = process.env.POST_LOGOUT_REDIRECT_URI || "https://ki.fh-swf.de";
+export const CORS_ORIGINS = parseList(process.env.CORS_ORIGINS, ['http://localhost:5173']);
 const LEGACY_COOKIE_DOMAINS = (process.env.LEGACY_COOKIE_DOMAINS || '')
     .split(',')
     .map(domain => domain.trim())
@@ -88,6 +110,7 @@ logger.debug('ISSUER', ISSUER);
 logger.debug('API_URL', API_URL);
 logger.debug('API_KEY', API_KEY);
 logger.debug('BASE_URL', BASE_URL);
+logger.debug('CORS_ORIGINS', CORS_ORIGINS);
 
 app.set('trust proxy', 1)
 
@@ -95,7 +118,19 @@ app.use(express.json({ limit: "10mb" }));
 app.use(cookieParser());
 
 logger.info('enabling cors on all requests');
-app.use(cors({ origin: "http://localhost:5173", credentials: true }));
+app.use(cors({
+    credentials: true,
+    origin: (origin, callback) => {
+        // Requests without an Origin header include direct navigations, such as
+        // the OAuth callback, and should not receive an ACAO header.
+        if (!origin) {
+            callback(null, false);
+            return;
+        }
+
+        callback(null, CORS_ORIGINS.includes(origin));
+    },
+}));
 
 let client;
 
@@ -308,6 +343,44 @@ const getCallbackUrl = (req) => {
     return callbackUrl;
 };
 
+const getConfiguredCallbackUrl = (req) => {
+    const callbackUrl = getCallbackUrl(req);
+    if (!REDIRECT_URIS.includes(callbackUrl.toString())) {
+        throw new Error(`Callback URL is not configured for this frontend: ${callbackUrl}`);
+    }
+
+    return callbackUrl;
+};
+
+const getReturnUrl = (req) => {
+    const returnUrl = req.query.return_url || req.headers.referer;
+    if (!returnUrl) {
+        return '/';
+    }
+
+    let parsedUrl;
+    try {
+        parsedUrl = new URL(returnUrl, `${getForwardedProto(req)}://${getForwardedHost(req)}`);
+    }
+    catch {
+        logger.warn('ignoring invalid login return URL', { returnUrl });
+        return '/';
+    }
+
+    const requestOrigin = `${getForwardedProto(req)}://${getForwardedHost(req)}`;
+    // Do not turn the login endpoint into an open redirect. A frontend hosted
+    // on another origin must be explicitly listed in CORS_ORIGINS.
+    if (!CORS_ORIGINS.includes(parsedUrl.origin) && parsedUrl.origin !== requestOrigin) {
+        logger.warn('ignoring login return URL from unconfigured origin', {
+            returnUrl,
+            origin: parsedUrl.origin,
+        });
+        return '/';
+    }
+
+    return parsedUrl.toString();
+};
+
 /** 
  * Add rate limit. 
  * Default limit is 100 requests per 15 minutes.
@@ -326,7 +399,7 @@ const limiter = rateLimit({
 app.get('/ip', (request, response) => response.send(request.ip))
 
 app.get('/login', asyncRoute(async (req, res) => {
-    const redirect_uri = getCallbackUrl(req);
+    const redirect_uri = getConfiguredCallbackUrl(req);
     logger.debug('login callback URL', { redirect_uri: redirect_uri.toString() });
 
     const authorizationUrl = client.authorizationUrl({
@@ -336,7 +409,7 @@ app.get('/login', asyncRoute(async (req, res) => {
 
     const loginCookieDomain = getCookieDomain(req.headers['x-forwarded-host'] || req.headers.host);
     clearCookieVariants(req, res, RETURN_URL_COOKIE_NAME);
-    res.cookie(RETURN_URL_COOKIE_NAME, req.query.return_url || req.headers.referer, {
+    res.cookie(RETURN_URL_COOKIE_NAME, getReturnUrl(req), {
         maxAge: 120000,
         httpOnly: true,
         secure: true,
@@ -368,7 +441,7 @@ app.get('/logout', asyncRoute((req, res) => {
 
 app.get('/callback', asyncRoute(async (req, res) => {
     try {
-        const redirect_uri = getCallbackUrl(req);
+        const redirect_uri = getConfiguredCallbackUrl(req);
         const params = client.callbackParams(req);
         logger.debug('req.headers', req.headers);
         logger.debug('req: ', req.protocol, req.hostname, req.baseUrl, req.url, req.originalUrl, req.path, req.query);

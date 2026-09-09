@@ -4,6 +4,7 @@ data:
   api.prefix: /v1
   api.url: https://api.openai.com/v1
   api.rate_limit: 200
+  cors.origins: https://login.ki.fh-swf.de,https://openai.ki.fh-swf.de,https://openai.fh-swf.cloud,https://openai.gawron.dev,http://localhost:5173
   node.extra_ca_certs: |-
     -----BEGIN CERTIFICATE-----
     MIIEMjCCAxqgAwIBAgIBATANBgkqhkiG9w0BAQUFADB7MQswCQYDVQQGEwJHQjEb
@@ -102,7 +103,8 @@ data:
     Ipwgu2L/WJclvd6g+ZA/iWkLSMcpnFb+uX6QBqvD6+RNxul1FaB5iHY=
     -----END CERTIFICATE-----
   oidc.issuer: https://www.ki.fh-swf.de/keycloak/realms/cluster
-  oidc.redirect_uri: https://login.ki.fh-swf.de/openai/api/callback
+  oidc.redirect_uris: '["https://login.ki.fh-swf.de/openai/api/callback","https://openai.ki.fh-swf.de/api/callback","https://openai.fh-swf.cloud/api/callback","https://openai.gawron.dev/api/callback","http://localhost:3000/callback"]'
+  oidc.post_logout_redirect_uri: https://login.ki.fh-swf.de/openai/ui/index.html
 kind: ConfigMap
 metadata:
   creationTimestamp: "2024-03-12T09:25:27Z"
@@ -118,8 +120,10 @@ metadata:
           f:api.prefix: {}
           f:api.url: {}
           f:node.extra_ca_certs: {}
+          f:cors.origins: {}
           f:oidc.issuer: {}
-          f:oidc.redirect_uri: {}
+          f:oidc.redirect_uris: {}
+          f:oidc.post_logout_redirect_uri: {}
         f:metadata:
           f:labels:
             .: {}

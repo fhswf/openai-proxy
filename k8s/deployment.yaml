@@ -56,6 +56,11 @@ spec:
                 configMapKeyRef:
                   key: api.rate_limit
                   name: proxy-config
+            - name: CORS_ORIGINS
+              valueFrom:
+                configMapKeyRef:
+                  key: cors.origins
+                  name: proxy-config
             - name: BASE_URL
               valueFrom:
                 configMapKeyRef:

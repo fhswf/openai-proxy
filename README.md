@@ -29,8 +29,15 @@ The following environment variables are used to configure the proxy server:
 | CLIENT_ID           |                            | The client id of the OIDC server                         |
 | CLIENT_SECRET       |                            | The client secret of the OIDC server                     |   
 | ISSUER              |                            | The issuer of the OIDC server                            |
-| REDIRECT_URI        |                            | The redirect URI of the OIDC server                      |
+| REDIRECT_URIS       | `["http://localhost:3000/callback"]` | JSON array or comma-separated list of callback URLs registered for the OIDC client |
+| CORS_ORIGINS        | `http://localhost:5173`    | Comma-separated frontend origins allowed to call the proxy with credentials |
 | NODE_EXTRA_CA_CERTS |                            | The path to the CA certificate of the OIDC server        |
+
+The proxy derives the OAuth callback URL from the public `Host`, `X-Forwarded-Host`,
+`X-Forwarded-Proto`, and `X-Forwarded-Prefix` headers. Each public callback URL must
+be present in both `REDIRECT_URIS` and the OIDC client's registered redirect URIs.
+For a frontend on another origin, add its origin to `CORS_ORIGINS` and pass it as
+`return_url` when starting login.
 
 
 ## ToDos
