@@ -11,8 +11,6 @@ spec:
   source:
     path: k8s
     repoURL: https://github.com/fhswf/openai-proxy.git
-    directory:
-      exclude: config.yaml
     targetRevision: HEAD
   syncPolicy:
     automated:
