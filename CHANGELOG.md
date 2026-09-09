@@ -1,3 +1,10 @@
+# [0.22.0](https://github.com/fhswf/openai-proxy/compare/v0.21.0...v0.22.0) (2026-09-09)
+
+
+### Features
+
+* update OIDC configuration to support multiple redirect URIs and CORS origins ([89c8f07](https://github.com/fhswf/openai-proxy/commit/89c8f072222c3d239698849a4de8aaf473a0c335))
+
 # [0.21.0](https://github.com/fhswf/openai-proxy/compare/v0.20.0...v0.21.0) (2026-05-28)
 
 
