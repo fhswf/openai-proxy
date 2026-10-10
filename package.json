@@ -9,7 +9,8 @@
     "start": "node dist/index.js",
     "build": "tsc",
     "dev": "NODE_EXTRA_CA_CERTS=certs/ca-certificates.crt node --watch src/index.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test --experimental-strip-types --test-concurrency=1 \"test/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit"
   },
   "author": "Christian Gawron",
   "license": "MIT",
