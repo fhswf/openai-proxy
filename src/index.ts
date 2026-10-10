@@ -11,13 +11,17 @@ import jwt from 'jsonwebtoken';
 
 
 import { initClient, getSigningKey } from './initClient.ts';
-import { mongo_connect, logRequest, countRequests, checkConnection } from './db.ts';
 import {
     parseList,
     resolveReturnUrl,
     createReturnState,
     readReturnState,
 } from './postLoginRedirect.ts';
+import { mongo_connect, logRequest, countRequests, checkConnection, getDb } from './db.ts';
+import { createZkRouter } from './zk/router.ts';
+import { MemoryZkStore } from './zk/memoryStore.ts';
+import { MongoZkStore } from './zk/mongoStore.ts';
+import type { ZkStore } from './zk/types.ts';
 
 const { combine, timestamp, json, errors } = format;
 const logger = createLogger({
@@ -92,6 +96,11 @@ const LEGACY_COOKIE_DOMAINS = (process.env.LEGACY_COOKIE_DOMAINS || '')
     .filter(Boolean);
 const TOKEN_COOKIE_NAME = 'token';
 const RETURN_URL_COOKIE_NAME = 'return_url';
+
+// Zero-knowledge vault configuration. The RP id defaults to the issuer host and
+// the accepted origins default to the configured CORS origins.
+export const WEBAUTHN_RP_ID = process.env.WEBAUTHN_RP_ID;
+export const WEBAUTHN_ORIGINS = parseList(process.env.WEBAUTHN_ORIGINS, CORS_ORIGINS);
 
 
 // log config values to console
@@ -567,6 +576,42 @@ app.get('/user', (req, res) => {
     res.send(req['user']);
 });
 
+// --- Zero-knowledge, cross-device chat vault -----------------------------
+const createZkStore = (): ZkStore => {
+    if (process.env.IGNORE_DB) {
+        logger.info('ignoring database, using in-memory zero-knowledge store');
+        return new MemoryZkStore();
+    }
+
+    return new MongoZkStore(getDb);
+};
+
+const resolveRpId = (): string => {
+    if (WEBAUTHN_RP_ID) {
+        return WEBAUTHN_RP_ID;
+    }
+
+    try {
+        return new URL(ISSUER).hostname;
+    }
+    catch {
+        return 'localhost';
+    }
+};
+
+const zkStore = createZkStore();
+app.use(`${PREFIX}/zk`, createZkRouter({
+    store: zkStore,
+    webauthn: {
+        rpId: resolveRpId(),
+        origins: WEBAUTHN_ORIGINS,
+    },
+    writeRateLimit: {
+        windowMs: 60 * 1000,
+        max: Number.parseInt(process.env.ZK_WRITE_RATE_LIMIT || '120'),
+    },
+}));
+
 
 app.use(limiter);
 
@@ -719,6 +764,7 @@ try {
     if (!process.env.IGNORE_DB) {
         logger.debug('connecting to mongo');
         await mongo_connect();
+        await zkStore.init();
     }
     if (!process.env.IGNORE_AUTH) {
         client = await initClient();
