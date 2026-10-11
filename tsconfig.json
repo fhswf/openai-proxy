@@ -10,5 +10,8 @@
         ],
         "allowSyntheticDefaultImports": true,
         "rewriteRelativeImportExtensions": true
-    }
+    },
+    "include": [
+        "src/**/*"
+    ]
 }
