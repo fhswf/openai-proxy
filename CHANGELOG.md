@@ -1,3 +1,10 @@
+## [0.22.1](https://github.com/fhswf/openai-proxy/compare/v0.22.0...v0.22.1) (2026-10-11)
+
+
+### Bug Fixes
+
+* honor post-login redirect URL from the frontend ([a30c529](https://github.com/fhswf/openai-proxy/commit/a30c529e47384ec18817f012bb861c29c12f3b56))
+
 # [0.22.0](https://github.com/fhswf/openai-proxy/compare/v0.21.0...v0.22.0) (2026-09-09)
 
 
