@@ -30,11 +30,6 @@ spec:
               memory: 512Mi
               cpu: 250m
           env:
-            - name: DEBUG
-              valueFrom:
-                configMapKeyRef:
-                  key: debug
-                  name: proxy-config
             - name: API_PREFIX
               valueFrom:
                 configMapKeyRef:
