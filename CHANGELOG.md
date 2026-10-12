@@ -33,6 +33,14 @@
 
 * add functions to handle forwarded headers for callback URL construction ([2b32afc](https://github.com/fhswf/openai-proxy/commit/2b32afc6e07757f4aeeda31df81fb2eabf72659d))
 
+## [0.26.0](https://github.com/fhswf/openai-proxy/compare/openai-proxy-v0.25.0...openai-proxy-v0.26.0) (2026-10-12)
+
+
+### Features
+
+* add credential public key handling in user key management and API ([0598112](https://github.com/fhswf/openai-proxy/commit/0598112330da5b4ac12ab97ea89e602ee10b2976))
+* refactor zk router setup for improved API handling ([c2cb217](https://github.com/fhswf/openai-proxy/commit/c2cb2171d41209ecd50777c947082a83b071d9ec))
+
 ## [0.25.0](https://github.com/fhswf/openai-proxy/compare/openai-proxy-v0.24.3...openai-proxy-v0.25.0) (2026-10-12)
 
 
