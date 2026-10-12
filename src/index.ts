@@ -635,6 +635,8 @@ function logResponseBody(req, res, next) {
 
 app.use(logResponseBody);
 
+const getProxyPath = (req) => `/v1${req.originalUrl.slice(PREFIX.length)}`;
+
 const doProxy = (req, res) => {
 
     const parsingProxy = proxy(API_URL, {
@@ -642,7 +644,7 @@ const doProxy = (req, res) => {
         limit: '10mb',
         parseReqBody: true,
         proxyReqPathResolver: function (req) {
-            const path = req.baseUrl.replace(PREFIX, '/v1');
+            const path = getProxyPath(req);
             logger.debug('path: ', req.baseUrl, path);
             return path;
         },
@@ -673,7 +675,7 @@ const doProxy = (req, res) => {
         limit: '10mb',
         parseReqBody: false,
         proxyReqPathResolver: function (req) {
-            const path = req.baseUrl.replace(PREFIX, '/v1');
+            const path = getProxyPath(req);
 
             return path;
         },
@@ -699,7 +701,7 @@ const doProxy = (req, res) => {
     }
 }
 
-app.use(`${PREFIX}*`, doProxy);
+app.use(PREFIX, doProxy);
 
 app.use((err, req, res, next) => {
     logRequestError('Unhandled request error', err, req);
