@@ -33,6 +33,15 @@
 
 * add functions to handle forwarded headers for callback URL construction ([2b32afc](https://github.com/fhswf/openai-proxy/commit/2b32afc6e07757f4aeeda31df81fb2eabf72659d))
 
+## [0.23.0](https://github.com/fhswf/openai-proxy/compare/openai-proxy-v0.22.1...openai-proxy-v0.23.0) (2026-10-12)
+
+
+### Features
+
+* enhance CI workflow with test result publishing and reporting ([caa8918](https://github.com/fhswf/openai-proxy/commit/caa89189d544b7c7539c51360b121c5cc8e284af))
+* implement zero-knowledge chat vault backend API ([6962e42](https://github.com/fhswf/openai-proxy/commit/6962e42e7d4e6b98b696f9485e3360e6bc551297))
+* zero-knowledge, cross-device chat vault backend API ([#44](https://github.com/fhswf/openai-proxy/issues/44)) ([35fafa4](https://github.com/fhswf/openai-proxy/commit/35fafa475ddb04f06c01ab9c20095161924c1b0f))
+
 ## [0.18.2](https://github.com/fhswf/openai-proxy/compare/v0.18.1...v0.18.2) (2026-05-18)
 
 
