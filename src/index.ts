@@ -667,7 +667,7 @@ const resolveRpId = (): string => {
 };
 
 const zkStore = createZkStore();
-app.use(`${PREFIX}/zk`, createZkRouter({
+const zkRouter = createZkRouter({
     store: zkStore,
     webauthn: {
         rpId: resolveRpId(),
@@ -677,7 +677,12 @@ app.use(`${PREFIX}/zk`, createZkRouter({
         windowMs: 60 * 1000,
         max: Number.parseInt(process.env.ZK_WRITE_RATE_LIMIT || '120'),
     },
-}));
+});
+app.use(`${PREFIX}/zk`, zkRouter);
+// The production ingress strips its public /api prefix before forwarding.
+// API_PREFIX is /v1 there for OpenAI proxying, so ZK requests arrive as /zk/...
+// and need this mount in addition to the prefixed mount used in local setups.
+app.use('/zk', zkRouter);
 
 
 app.use(limiter);
