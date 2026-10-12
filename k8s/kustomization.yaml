@@ -22,4 +22,4 @@ configMapGenerator:
       - oidc.post_logout_redirect_uri=https://login.ki.fh-swf.de/openai/ui/index.html
 images:
   - name: ghcr.io/fhswf/openai-proxy
-    newTag: 0.25.0
+    newTag: 0.26.0
