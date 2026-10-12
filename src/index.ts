@@ -299,16 +299,39 @@ const getTokenCandidates = (req) => {
     ].filter(Boolean)));
 };
 
-const setTokenCookie = (req, res, token) => {
-    const callbackCookieDomain = getCookieDomain(req.headers['x-forwarded-host'] || req.headers.host);
+const setTokenCookie = (req, res, token, returnUrl) => {
+    const callbackHost = req.headers['x-forwarded-host'] || req.headers.host;
+    const callbackCookieDomain = getCookieDomain(callbackHost);
+    let cookieDomain = callbackCookieDomain;
+    let sameSite: 'lax' | 'none' = 'lax';
+
+    try {
+        const frontendUrl = new URL(returnUrl, getRequestOrigin(req));
+        const frontendHostname = frontendUrl.hostname.toLowerCase();
+
+        // A browser cannot set a localhost cookie from the hosted callback.
+        // Keep local development sessions off the proxy's shared parent domain.
+        if (frontendHostname === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(frontendHostname)) {
+            cookieDomain = undefined;
+        }
+
+        // The frontend may call the proxy from a different site (for example
+        // localhost:5173 calling the hosted proxy), which requires SameSite=None.
+        if (frontendUrl.origin !== getRequestOrigin(req)) {
+            sameSite = 'none';
+        }
+    }
+    catch {
+        // Keep the secure, same-site defaults if the target cannot be parsed.
+    }
 
     res.cookie(TOKEN_COOKIE_NAME, token, {
         maxAge: 86400000,
         httpOnly: true,
         secure: true,
-        sameSite: 'lax',
+        sameSite,
         path: '/',
-        ...(callbackCookieDomain ? { domain: callbackCookieDomain } : {}),
+        ...(cookieDomain ? { domain: cookieDomain } : {}),
     });
 };
 
@@ -464,12 +487,12 @@ app.get('/callback', asyncRoute(async (req, res) => {
         const token = tokenSet.id_token;
 
         clearCookieVariants(req, res, TOKEN_COOKIE_NAME);
-        setTokenCookie(req, res, token);
         // The state is signed, so its return URL was already validated when the
         // login started. Only the cookie fallback needs to be re-validated.
         const cookieReturnUrl = getCookieValues(req, RETURN_URL_COOKIE_NAME).at(-1) || req.cookies[RETURN_URL_COOKIE_NAME];
         const return_url = stateReturnUrl
             || resolveReturnUrl(cookieReturnUrl, getRequestOrigin(req), RETURN_URL_ORIGINS);
+        setTokenCookie(req, res, token, return_url);
         clearCookieVariants(req, res, RETURN_URL_COOKIE_NAME);
         res.redirect(return_url);
     }
