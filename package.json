@@ -1,6 +1,6 @@
 {
   "name": "openai-proxy",
-  "version": "0.22.0",
+  "version": "0.22.1",
   "description": "Proxy for the OpenAI API",
   "private": true,
   "main": "lib/index.js",
@@ -9,30 +9,16 @@
     "start": "node dist/index.js",
     "build": "tsc",
     "dev": "NODE_EXTRA_CA_CERTS=certs/ca-certificates.crt node --watch src/index.ts",
-    "test": "node --test --experimental-strip-types \"test/**/*.test.ts\"",
+    "test": "node --test --experimental-strip-types --test-concurrency=1 \"test/**/*.test.ts\"",
     "typecheck": "tsc --noEmit"
   },
   "author": "Christian Gawron",
   "license": "MIT",
-  "release": {
-    "branches": [
-      "main",
-      "next"
-    ],
-    "plugins": [
-      "@semantic-release/commit-analyzer",
-      "@semantic-release/release-notes-generator",
-      "@semantic-release/changelog",
-      "@semantic-release/npm",
-      "@semantic-release/github",
-      "@semantic-release/git"
-    ]
-  },
   "dependencies": {
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
-    "express": "^4.22.2",
+    "express": "^5.2.1",
     "express-http-proxy": "^2.0.0",
     "express-rate-limit": "^7.5.0",
     "http-proxy": "^1.18.1",
@@ -43,15 +29,7 @@
     "winston": "^3.12.0"
   },
   "devDependencies": {
-    "@semantic-release/changelog": "^6.0.3",
-    "@semantic-release/commit-analyzer": "^13.0.0",
-    "@semantic-release/git": "^10.0.1",
-    "@semantic-release/github": "^11.0.0",
-    "@semantic-release/npm": "^12.0.0",
-    "@semantic-release/release-notes-generator": "^14.0.1",
-    "semantic-release": "^24.2.3",
     "ts-node": "^10.9.2",
-    "ts-node-dev": "^2.0.0",
     "typescript": "^5.8.3"
   }
 }

@@ -1,0 +1,9 @@
+{
+  "bootstrap-sha": "d4e78195119a65771e16b9f138984410350dc2ba",
+  "packages": {
+    ".": {
+      "release-type": "node",
+      "changelog-path": "CHANGELOG.md"
+    }
+  }
+}

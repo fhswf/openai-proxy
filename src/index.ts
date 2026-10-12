@@ -16,6 +16,12 @@ import { createZkRouter } from './zk/router.ts';
 import { MemoryZkStore } from './zk/memoryStore.ts';
 import { MongoZkStore } from './zk/mongoStore.ts';
 import type { ZkStore } from './zk/types.ts';
+import {
+    parseList,
+    resolveReturnUrl,
+    createReturnState,
+    readReturnState,
+} from './postLoginRedirect.ts';
 
 const { combine, timestamp, json, errors } = format;
 const logger = createLogger({
@@ -67,24 +73,6 @@ app.set('x-powered-by', false);
 
 export const CLIENT_ID = process.env.CLIENT_ID;
 export const CLIENT_SECRET = process.env.CLIENT_SECRET;
-const parseList = (value: string | undefined, fallback: string[] = []) => {
-    if (!value) {
-        return fallback;
-    }
-
-    try {
-        const parsed = JSON.parse(value);
-        if (Array.isArray(parsed)) {
-            return parsed.map(String).map(item => item.trim()).filter(Boolean);
-        }
-    }
-    catch {
-        // Also accept a comma-separated value for easier deployment configuration.
-    }
-
-    return value.split(',').map(item => item.trim()).filter(Boolean);
-};
-
 export const REDIRECT_URIS = parseList(
     process.env.REDIRECT_URIS,
     ['http://localhost:3000/callback'],
@@ -96,6 +84,12 @@ const API_KEY = process.env.API_KEY;
 const BASE_URL = process.env.BASE_URL;
 const POST_LOGOUT_REDIRECT_URI = process.env.POST_LOGOUT_REDIRECT_URI || "https://ki.fh-swf.de";
 export const CORS_ORIGINS = parseList(process.env.CORS_ORIGINS, ['http://localhost:5173']);
+// Origins a frontend may be redirected to after login. Defaults to CORS_ORIGINS
+// so a frontend whose calls are already allowed can also be a return target.
+export const RETURN_URL_ORIGINS = parseList(process.env.RETURN_URL_ORIGINS, CORS_ORIGINS);
+// Secret used to sign the OAuth state that carries the post-login return URL.
+// Falls back to CLIENT_SECRET so no extra configuration is required.
+const LOGIN_STATE_SECRET = process.env.LOGIN_STATE_SECRET || CLIENT_SECRET || 'openai-proxy-login-state';
 const LEGACY_COOKIE_DOMAINS = (process.env.LEGACY_COOKIE_DOMAINS || '')
     .split(',')
     .map(domain => domain.trim())
@@ -120,6 +114,7 @@ logger.debug('API_URL', API_URL);
 logger.debug('API_KEY', API_KEY);
 logger.debug('BASE_URL', BASE_URL);
 logger.debug('CORS_ORIGINS', CORS_ORIGINS);
+logger.debug('RETURN_URL_ORIGINS', RETURN_URL_ORIGINS);
 
 app.set('trust proxy', 1)
 
@@ -361,33 +356,21 @@ const getConfiguredCallbackUrl = (req) => {
     return callbackUrl;
 };
 
+const getRequestOrigin = (req) => `${getForwardedProto(req)}://${getForwardedHost(req)}`;
+
 const getReturnUrl = (req) => {
     const returnUrl = req.query.return_url || req.headers.referer;
-    if (!returnUrl) {
-        return '/';
-    }
+    const requestOrigin = getRequestOrigin(req);
+    const resolved = resolveReturnUrl(returnUrl, requestOrigin, RETURN_URL_ORIGINS);
 
-    let parsedUrl;
-    try {
-        parsedUrl = new URL(returnUrl, `${getForwardedProto(req)}://${getForwardedHost(req)}`);
-    }
-    catch {
-        logger.warn('ignoring invalid login return URL', { returnUrl });
-        return '/';
-    }
-
-    const requestOrigin = `${getForwardedProto(req)}://${getForwardedHost(req)}`;
-    // Do not turn the login endpoint into an open redirect. A frontend hosted
-    // on another origin must be explicitly listed in CORS_ORIGINS.
-    if (!CORS_ORIGINS.includes(parsedUrl.origin) && parsedUrl.origin !== requestOrigin) {
+    if (resolved === '/' && returnUrl) {
         logger.warn('ignoring login return URL from unconfigured origin', {
             returnUrl,
-            origin: parsedUrl.origin,
+            requestOrigin,
         });
-        return '/';
     }
 
-    return parsedUrl.toString();
+    return resolved;
 };
 
 /** 
@@ -411,14 +394,18 @@ app.get('/login', asyncRoute(async (req, res) => {
     const redirect_uri = getConfiguredCallbackUrl(req);
     logger.debug('login callback URL', { redirect_uri: redirect_uri.toString() });
 
+    const returnUrl = getReturnUrl(req);
+    const state = createReturnState(returnUrl, LOGIN_STATE_SECRET);
+
     const authorizationUrl = client.authorizationUrl({
         scope: 'openid profile email',
         redirect_uri: redirect_uri.toString(),
+        state,
     });
 
     const loginCookieDomain = getCookieDomain(req.headers['x-forwarded-host'] || req.headers.host);
     clearCookieVariants(req, res, RETURN_URL_COOKIE_NAME);
-    res.cookie(RETURN_URL_COOKIE_NAME, getReturnUrl(req), {
+    res.cookie(RETURN_URL_COOKIE_NAME, returnUrl, {
         maxAge: 120000,
         httpOnly: true,
         secure: true,
@@ -455,14 +442,24 @@ app.get('/callback', asyncRoute(async (req, res) => {
         logger.debug('req.headers', req.headers);
         logger.debug('req: ', req.protocol, req.hostname, req.baseUrl, req.url, req.originalUrl, req.path, req.query);
 
-        const tokenSet = await client.callback(redirect_uri.toString(), params, { code_verifier: client.code_verifier });
+        // The return URL travels in the signed OAuth state so the login flow
+        // works for frontends that cannot receive the proxy's return_url
+        // cookie (e.g. a different registrable domain) or that land on a
+        // different proxy replica.
+        const stateReturnUrl = readReturnState(params.state, LOGIN_STATE_SECRET);
+        const checks = { code_verifier: client.code_verifier, ...(params.state ? { state: params.state } : {}) };
+        const tokenSet = await client.callback(redirect_uri.toString(), params, checks);
         const user = jwt.decode(tokenSet.id_token);
         logger.debug('callback user', user);
         const token = tokenSet.id_token;
 
         clearCookieVariants(req, res, TOKEN_COOKIE_NAME);
         setTokenCookie(req, res, token);
-        const return_url = getCookieValues(req, RETURN_URL_COOKIE_NAME).at(-1) || req.cookies[RETURN_URL_COOKIE_NAME] || "/";
+        // The state is signed, so its return URL was already validated when the
+        // login started. Only the cookie fallback needs to be re-validated.
+        const cookieReturnUrl = getCookieValues(req, RETURN_URL_COOKIE_NAME).at(-1) || req.cookies[RETURN_URL_COOKIE_NAME];
+        const return_url = stateReturnUrl
+            || resolveReturnUrl(cookieReturnUrl, getRequestOrigin(req), RETURN_URL_ORIGINS);
         clearCookieVariants(req, res, RETURN_URL_COOKIE_NAME);
         res.redirect(return_url);
     }
@@ -770,8 +767,9 @@ try {
     if (!process.env.IGNORE_AUTH) {
         client = await initClient();
     }
-    app.listen(3000, () => {
-        logger.debug('Proxy server is running on port 3000');
+    const port = Number.parseInt(process.env.PORT || '3000', 10);
+    app.listen(port, () => {
+        logger.debug(`Proxy server is running on port ${port}`);
     });
 }
 catch (err) {

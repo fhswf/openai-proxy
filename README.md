@@ -34,13 +34,31 @@ The following environment variables are used to configure the proxy server:
 | WEBAUTHN_RP_ID      | host of `ISSUER`           | Relying-party id accepted when verifying WebAuthn assertions (zero-knowledge chat vault) |
 | WEBAUTHN_ORIGINS    | `CORS_ORIGINS`             | Comma-separated list (or JSON array) of origins accepted in WebAuthn assertions |
 | ZK_WRITE_RATE_LIMIT | `120`                      | Write requests per user per minute for the `/api/zk` endpoints |
+| RETURN_URL_ORIGINS  | value of `CORS_ORIGINS`    | Comma-separated frontend origins a user may be redirected to after login |
+| LOGIN_STATE_SECRET  | value of `CLIENT_SECRET`   | Secret used to sign the OAuth `state` that carries the post-login return URL |
+| PORT                | `3000`                     | Port the proxy listens on                                |
 | NODE_EXTRA_CA_CERTS |                            | The path to the CA certificate of the OIDC server        |
 
 The proxy derives the OAuth callback URL from the public `Host`, `X-Forwarded-Host`,
 `X-Forwarded-Proto`, and `X-Forwarded-Prefix` headers. Each public callback URL must
 be present in both `REDIRECT_URIS` and the OIDC client's registered redirect URIs.
-For a frontend on another origin, add its origin to `CORS_ORIGINS` and pass it as
-`return_url` when starting login.
+
+### Multiple frontends
+A single proxy can serve several frontends that live on different origins (for
+example a production and a staging frontend). Such a frontend passes the URL to
+return to after login as the `return_url` query parameter:
+
+```
+GET /login?return_url=https://staging.example.org/
+```
+
+The return URL is validated against `RETURN_URL_ORIGINS`, encoded into the signed
+OAuth `state`, and used as the redirect target once the OIDC callback completes.
+Because the return URL is carried in `state`, the flow also works when the
+frontend is on a different registrable domain than the proxy and cannot receive
+the proxy's `return_url` cookie. Origins that are not listed in
+`RETURN_URL_ORIGINS` are rejected to prevent the login endpoint from becoming an
+open redirect.
 
 
 ## ToDos
