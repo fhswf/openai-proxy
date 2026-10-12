@@ -7,6 +7,16 @@ import crypto from 'node:crypto';
  */
 export const RETURN_STATE_TTL_MS = 10 * 60 * 1000;
 
+export interface ReturnStateOptions {
+    now?: number;
+    callbackUrl?: string;
+}
+
+export interface ReturnStateData {
+    returnUrl: string;
+    callbackUrl?: string;
+}
+
 /**
  * Parse a comma-separated or JSON-array configuration value into a list of
  * trimmed, non-empty strings.
@@ -81,23 +91,29 @@ const sign = (payload: string, secret: string) =>
 export function createReturnState(
     returnUrl: string,
     secret: string,
-    now: number = Date.now(),
+    options: number | ReturnStateOptions = {},
 ): string {
-    const payload = b64urlEncode(JSON.stringify({ r: returnUrl, t: now }));
+    const now = typeof options === 'number' ? options : options.now ?? Date.now();
+    const callbackUrl = typeof options === 'number' ? undefined : options.callbackUrl;
+    const payload = b64urlEncode(JSON.stringify({
+        r: returnUrl,
+        t: now,
+        ...(callbackUrl ? { c: callbackUrl } : {}),
+    }));
     return `${payload}.${sign(payload, secret)}`;
 }
 
 /**
- * Verify a signed state and return the return URL it carries.
+ * Verify a signed state and return the data it carries.
  *
- * @returns the return URL, or `undefined` when the state is missing, tampered
- *          with or expired.
+ * @returns the state data, or `undefined` when the state is missing, tampered
+ *          with or expired. Older states without a callback URL remain valid.
  */
-export function readReturnState(
+export function readReturnStateData(
     state: unknown,
     secret: string,
     now: number = Date.now(),
-): string | undefined {
+): ReturnStateData | undefined {
     if (typeof state !== 'string' || !state.includes('.')) {
         return undefined;
     }
@@ -114,7 +130,7 @@ export function readReturnState(
         return undefined;
     }
 
-    let parsed: { r?: unknown; t?: unknown };
+    let parsed: { r?: unknown; t?: unknown; c?: unknown };
     try {
         parsed = JSON.parse(b64urlDecode(payload));
     }
@@ -126,9 +142,30 @@ export function readReturnState(
         return undefined;
     }
 
+    if (parsed.c !== undefined && typeof parsed.c !== 'string') {
+        return undefined;
+    }
+
     if (now - parsed.t > RETURN_STATE_TTL_MS) {
         return undefined;
     }
 
-    return parsed.r;
+    return {
+        returnUrl: parsed.r,
+        ...(typeof parsed.c === 'string' ? { callbackUrl: parsed.c } : {}),
+    };
+}
+
+/**
+ * Verify a signed state and return the return URL it carries.
+ *
+ * @returns the return URL, or `undefined` when the state is missing, tampered
+ *          with or expired.
+ */
+export function readReturnState(
+    state: unknown,
+    secret: string,
+    now: number = Date.now(),
+): string | undefined {
+    return readReturnStateData(state, secret, now)?.returnUrl;
 }

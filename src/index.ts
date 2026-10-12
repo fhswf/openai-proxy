@@ -15,7 +15,7 @@ import {
     parseList,
     resolveReturnUrl,
     createReturnState,
-    readReturnState,
+    readReturnStateData,
 } from './postLoginRedirect.ts';
 import { mongo_connect, logRequest, countRequests, checkConnection, getDb } from './db.ts';
 import { createZkRouter } from './zk/router.ts';
@@ -428,7 +428,9 @@ app.get('/login', asyncRoute(async (req, res) => {
     logger.debug('login callback URL', { redirect_uri: redirect_uri.toString() });
 
     const returnUrl = getReturnUrl(req);
-    const state = createReturnState(returnUrl, LOGIN_STATE_SECRET);
+    const state = createReturnState(returnUrl, LOGIN_STATE_SECRET, {
+        callbackUrl: redirect_uri.toString(),
+    });
 
     const authorizationUrl = client.authorizationUrl({
         scope: 'openid profile email',
@@ -470,8 +472,22 @@ app.get('/logout', asyncRoute((req, res) => {
 
 app.get('/callback', asyncRoute(async (req, res) => {
     try {
-        const redirect_uri = getConfiguredCallbackUrl(req);
         const params = client.callbackParams(req);
+        const stateData = readReturnStateData(params.state, LOGIN_STATE_SECRET);
+        const stateCallbackUrl = stateData?.callbackUrl;
+        let redirect_uri: string;
+        if (stateCallbackUrl) {
+            if (!REDIRECT_URIS.includes(stateCallbackUrl)) {
+                throw new CallbackUrlConfigurationError(new URL(stateCallbackUrl));
+            }
+
+            redirect_uri = stateCallbackUrl;
+        }
+        else {
+            redirect_uri = getConfiguredCallbackUrl(req).toString();
+        }
+
+        logger.debug('callback redirect URL', { redirect_uri });
         logger.debug('req.headers', req.headers);
         logger.debug('req: ', req.protocol, req.hostname, req.baseUrl, req.url, req.originalUrl, req.path, req.query);
 
@@ -479,9 +495,8 @@ app.get('/callback', asyncRoute(async (req, res) => {
         // works for frontends that cannot receive the proxy's return_url
         // cookie (e.g. a different registrable domain) or that land on a
         // different proxy replica.
-        const stateReturnUrl = readReturnState(params.state, LOGIN_STATE_SECRET);
         const checks = { code_verifier: client.code_verifier, ...(params.state ? { state: params.state } : {}) };
-        const tokenSet = await client.callback(redirect_uri.toString(), params, checks);
+        const tokenSet = await client.callback(redirect_uri, params, checks);
         const user = jwt.decode(tokenSet.id_token);
         logger.debug('callback user', user);
         const token = tokenSet.id_token;
@@ -490,7 +505,7 @@ app.get('/callback', asyncRoute(async (req, res) => {
         // The state is signed, so its return URL was already validated when the
         // login started. Only the cookie fallback needs to be re-validated.
         const cookieReturnUrl = getCookieValues(req, RETURN_URL_COOKIE_NAME).at(-1) || req.cookies[RETURN_URL_COOKIE_NAME];
-        const return_url = stateReturnUrl
+        const return_url = stateData?.returnUrl
             || resolveReturnUrl(cookieReturnUrl, getRequestOrigin(req), RETURN_URL_ORIGINS);
         setTokenCookie(req, res, token, return_url);
         clearCookieVariants(req, res, RETURN_URL_COOKIE_NAME);
