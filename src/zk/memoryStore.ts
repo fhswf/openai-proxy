@@ -41,6 +41,9 @@ export class MemoryZkStore implements ZkStore {
 
     async upsertUserKeys(record: UserKeysRecord): Promise<void> {
         const existing = this.userKeysById.get(record.userId);
+        if (existing && existing.credentialId !== record.credentialId) {
+            this.userKeysByCredential.delete(existing.credentialId);
+        }
         const stored: UserKeysRecord = {
             ...record,
             createdAt: existing?.createdAt ?? record.createdAt,
@@ -48,6 +51,13 @@ export class MemoryZkStore implements ZkStore {
         };
         this.userKeysById.set(stored.userId, stored);
         this.userKeysByCredential.set(stored.credentialId, stored);
+    }
+
+    async deleteUserKeys(userId: string): Promise<void> {
+        const existing = this.userKeysById.get(userId);
+        if (!existing) return;
+        this.userKeysById.delete(userId);
+        this.userKeysByCredential.delete(existing.credentialId);
     }
 
     async markAsserted(userId: string, at: Date): Promise<void> {

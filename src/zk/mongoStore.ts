@@ -11,6 +11,7 @@ import type {
 interface UserKeysDoc {
     _id: string;
     credential_id: string;
+    credential_public_key: string;
     public_key: string;
     encrypted_sk: string;
     encrypted_sk_iv: string;
@@ -94,6 +95,7 @@ export class MongoZkStore implements ZkStore {
         return {
             userId: doc._id,
             credentialId: doc.credential_id,
+            credentialPublicKey: doc.credential_public_key,
             publicKey: doc.public_key,
             encryptedSk: doc.encrypted_sk,
             encryptedSkIv: doc.encrypted_sk_iv,
@@ -122,18 +124,23 @@ export class MongoZkStore implements ZkStore {
             {
                 $set: {
                     credential_id: record.credentialId,
+                    credential_public_key: record.credentialPublicKey,
                     public_key: record.publicKey,
                     encrypted_sk: record.encryptedSk,
                     encrypted_sk_iv: record.encryptedSkIv,
+                    asserted_at: record.assertedAt,
                     updated_at: record.updatedAt,
                 },
                 $setOnInsert: {
                     created_at: existing?.created_at ?? record.createdAt,
-                    asserted_at: record.assertedAt ?? null,
                 },
             },
             { upsert: true },
         );
+    }
+
+    async deleteUserKeys(userId: string): Promise<void> {
+        await this.users().deleteOne({ _id: userId });
     }
 
     async markAsserted(userId: string, at: Date): Promise<void> {

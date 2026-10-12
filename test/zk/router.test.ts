@@ -92,7 +92,8 @@ async function registerUser(user: string, credentialId: string) {
         user,
         body: {
             credentialId,
-            publicKey: credential.publicKey,
+            credentialPublicKey: credential.publicKey,
+            publicKey: fakeCiphertext(128),
             encryptedSk: fakeCiphertext(128),
             encryptedSkIv: fakeCiphertext(12),
             challenge: challengeResponse.body.challenge,
@@ -156,7 +157,7 @@ describe('zk router', () => {
 
         const publicKey = await call('GET', '/api/zk/keys/alice/public-key', { user: 'bob' });
         assert.equal(publicKey.status, 200);
-        assert.equal(publicKey.body.publicKey, credential.publicKey);
+        assert.equal(publicKey.body.publicKey, fakeCiphertext(128));
         assert.equal(publicKey.body.encryptedSk, undefined);
     });
 
@@ -339,7 +340,8 @@ describe('zk router', () => {
             user: 'rotator',
             body: {
                 credentialId: credId('cred-rotate-2'),
-                publicKey: newCredential.publicKey,
+                credentialPublicKey: newCredential.publicKey,
+                publicKey: fakeCiphertext(128),
                 encryptedSk: fakeCiphertext(128),
                 encryptedSkIv: fakeCiphertext(12),
                 challenge: challengeResponse.body.challenge,

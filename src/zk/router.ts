@@ -163,6 +163,7 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
         const body = req.body ?? {};
 
         const credentialId = requireBase64(body.credentialId, 'credentialId', { min: 1, max: MAX_CREDENTIAL_ID_BYTES });
+        const credentialPublicKey = requireBase64(body.credentialPublicKey, 'credentialPublicKey', { min: 1, max: MAX_PUBLIC_KEY_BYTES });
         const publicKey = requireBase64(body.publicKey, 'publicKey', { min: 1, max: MAX_PUBLIC_KEY_BYTES });
         const encryptedSk = requireBase64(body.encryptedSk, 'encryptedSk', { min: 1, max: MAX_ENCRYPTED_SK_BYTES });
         const encryptedSkIv = requireBase64(body.encryptedSkIv, 'encryptedSkIv', { min: 1, max: MAX_IV_BYTES });
@@ -182,12 +183,16 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
         await store.upsertUserKeys({
             userId,
             credentialId,
+            credentialPublicKey,
             publicKey,
             encryptedSk,
             encryptedSkIv,
             // Registration alone never unlocks encryptedSk; a WebAuthn
             // assertion is required before the wrapped key can be fetched.
-            assertedAt: existing?.assertedAt ?? null,
+            assertedAt:
+                existing?.credentialId === credentialId
+                    ? existing.assertedAt
+                    : null,
             createdAt: existing?.createdAt ?? now(),
             updatedAt: now(),
         });
@@ -201,7 +206,7 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
         const credentialId = requireBase64(body.credentialId, 'credentialId', { min: 1, max: MAX_CREDENTIAL_ID_BYTES });
 
         const record = await store.getUserKeysByCredentialId(credentialId);
-        if (!record) {
+        if (!record || record.userId !== userId) {
             throw new ZkError(404, 'not_found', 'Unknown credential');
         }
 
@@ -236,7 +241,7 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
         const verdict = verifyAssertion(
             { credentialId, authenticatorData, clientDataJSON, signature },
             challenge,
-            record.publicKey,
+            record.credentialPublicKey,
             webauthn,
         );
 
@@ -271,6 +276,12 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
                 encryptedSkIv: record.encryptedSkIv,
             } : {}),
         });
+    }));
+
+    router.delete('/keys/me', writeLimiter, route(async (req, res) => {
+        const userId = getUserId(req);
+        await store.deleteUserKeys(userId);
+        res.status(204).end();
     }));
 
     router.get('/keys/:userId/public-key', route(async (req, res) => {
@@ -473,6 +484,7 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
         const body = req.body ?? {};
 
         const credentialId = requireBase64(body.credentialId, 'credentialId', { min: 1, max: MAX_CREDENTIAL_ID_BYTES });
+        const credentialPublicKey = requireBase64(body.credentialPublicKey, 'credentialPublicKey', { min: 1, max: MAX_PUBLIC_KEY_BYTES });
         const publicKey = requireBase64(body.publicKey, 'publicKey', { min: 1, max: MAX_PUBLIC_KEY_BYTES });
         const encryptedSk = requireBase64(body.encryptedSk, 'encryptedSk', { min: 1, max: MAX_ENCRYPTED_SK_BYTES });
         const encryptedSkIv = requireBase64(body.encryptedSkIv, 'encryptedSkIv', { min: 1, max: MAX_IV_BYTES });
@@ -496,9 +508,11 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
         await store.upsertUserKeys({
             ...existing,
             credentialId,
+            credentialPublicKey,
             publicKey,
             encryptedSk,
             encryptedSkIv,
+            assertedAt: null,
             updatedAt: now(),
         });
 

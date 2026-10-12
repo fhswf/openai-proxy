@@ -1,6 +1,7 @@
 export interface UserKeysRecord {
     userId: string;
     credentialId: string;
+    credentialPublicKey: string;
     publicKey: string;
     encryptedSk: string;
     encryptedSkIv: string;
@@ -57,6 +58,7 @@ export interface ZkStore {
     getUserKeysByUserId(userId: string): Promise<UserKeysRecord | null>;
     getUserKeysByCredentialId(credentialId: string): Promise<UserKeysRecord | null>;
     upsertUserKeys(record: UserKeysRecord): Promise<void>;
+    deleteUserKeys(userId: string): Promise<void>;
     findUserKeysByPublicKey(publicKey: string): Promise<UserKeysRecord | null>;
     markAsserted(userId: string, at: Date): Promise<void>;
 
