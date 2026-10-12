@@ -547,7 +547,7 @@ const checkAuth = (req, res, next) => {
 
         if (tokenCandidates.length > 1 || token !== tokenCandidates[0]) {
             clearCookieVariants(req, res, TOKEN_COOKIE_NAME);
-            setTokenCookie(req, res, token);
+            setTokenCookie(req, res, token, req.headers.origin || getRequestOrigin(req));
         }
 
         try {
