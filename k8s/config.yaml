@@ -3,7 +3,7 @@ data:
   api.base_url: /openai/ui/index.html
   api.prefix: /v1
   api.url: https://api.openai.com/v1
-  api.rate_limit: 200
+  api.rate_limit: "200"
   cors.origins: https://login.ki.fh-swf.de,https://openai.ki.fh-swf.de,https://openai.fh-swf.cloud,https://openai.gawron.dev,http://localhost:5173
   node.extra_ca_certs: |-
     -----BEGIN CERTIFICATE-----
