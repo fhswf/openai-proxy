@@ -33,6 +33,13 @@
 
 * add functions to handle forwarded headers for callback URL construction ([2b32afc](https://github.com/fhswf/openai-proxy/commit/2b32afc6e07757f4aeeda31df81fb2eabf72659d))
 
+## [0.27.0](https://github.com/fhswf/openai-proxy/compare/openai-proxy-v0.26.0...openai-proxy-v0.27.0) (2026-10-12)
+
+
+### Features
+
+* enhance zero-knowledge chat key management with algorithm support and update workflows ([4da93b7](https://github.com/fhswf/openai-proxy/commit/4da93b7a8c5b2539110fb3b97edb25c112209c57))
+
 ## [0.26.0](https://github.com/fhswf/openai-proxy/compare/openai-proxy-v0.25.0...openai-proxy-v0.26.0) (2026-10-12)
 
 
