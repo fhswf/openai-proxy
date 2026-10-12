@@ -7,17 +7,19 @@ on:
 
 jobs:
   prune:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
     steps:
     - name: Prune
-      uses: vlaurin/action-ghcr-prune@v0.6.0
+      uses: dataaxiom/ghcr-cleanup-action@v1.2.2
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
-        organization: fhswf
-        container: openai-proxy
+        owner: fhswf
+        package: openai-proxy
         dry-run: false
-        prune-untagged: true
-        prune-tags-regexes: |
-            ^sha-.*
-        keep-tags: |
-            latest
+        delete-untagged: true
+        delete-tags: '^sha-.*'
+        exclude-tags: latest
+        use-regex: true
