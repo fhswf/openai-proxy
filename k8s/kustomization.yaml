@@ -7,8 +7,6 @@ resources:
   - mongodb.yaml
   - namespace.yaml
   - services.yaml
-# The content hash in this ConfigMap's name changes the Deployment pod template
-# references whenever configuration changes, which triggers a rolling restart.
 configMapGenerator:
   - name: proxy-config
     files:
@@ -24,4 +22,4 @@ configMapGenerator:
       - oidc.post_logout_redirect_uri=https://login.ki.fh-swf.de/openai/ui/index.html
 images:
   - name: ghcr.io/fhswf/openai-proxy
-    newTag: 0.23.0
+    newTag: 0.24.0
