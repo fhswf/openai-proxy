@@ -2,12 +2,26 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - argocd.yaml
-  - config.yaml
   - deployment.yaml
   - ingress.yaml
   - mongodb.yaml
   - namespace.yaml
   - services.yaml
+# The content hash in this ConfigMap's name changes the Deployment pod template
+# references whenever configuration changes, which triggers a rolling restart.
+configMapGenerator:
+  - name: proxy-config
+    files:
+      - node.extra_ca_certs=extra-ca-certificates.crt
+    literals:
+      - api.base_url=/openai/ui/index.html
+      - api.prefix=/v1
+      - api.url=https://api.openai.com/v1
+      - api.rate_limit=200
+      - cors.origins=https://login.ki.fh-swf.de,https://openai.ki.fh-swf.de,https://openai.fh-swf.cloud,https://openai.gawron.dev,http://localhost:5173
+      - oidc.issuer=https://www.ki.fh-swf.de/keycloak/realms/cluster
+      - oidc.redirect_uris=["https://login.ki.fh-swf.de/openai/api/callback","https://openai.ki.fh-swf.de/api/callback","https://openai.fh-swf.cloud/api/callback","https://openai.gawron.dev/api/callback","http://localhost:3000/callback"]
+      - oidc.post_logout_redirect_uri=https://login.ki.fh-swf.de/openai/ui/index.html
 images:
   - name: ghcr.io/fhswf/openai-proxy
     newTag: 0.23.0

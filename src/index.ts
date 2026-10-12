@@ -347,10 +347,20 @@ const getCallbackUrl = (req) => {
     return callbackUrl;
 };
 
+class CallbackUrlConfigurationError extends Error {
+    constructor(callbackUrl: URL) {
+        super(
+            `OAuth login is unavailable because callback URL ${callbackUrl} is not listed in REDIRECT_URIS. `
+            + `Add this exact URL to the proxy's REDIRECT_URIS setting and register it with the OIDC provider.`,
+        );
+        this.name = 'CallbackUrlConfigurationError';
+    }
+}
+
 const getConfiguredCallbackUrl = (req) => {
     const callbackUrl = getCallbackUrl(req);
     if (!REDIRECT_URIS.includes(callbackUrl.toString())) {
-        throw new Error(`Callback URL is not configured for this frontend: ${callbackUrl}`);
+        throw new CallbackUrlConfigurationError(callbackUrl);
     }
 
     return callbackUrl;
@@ -469,7 +479,8 @@ app.get('/callback', asyncRoute(async (req, res) => {
             throw err;
         }
 
-        res.status(400).send('Error: ' + (err instanceof Error ? err.message : err));
+        const status = err instanceof CallbackUrlConfigurationError ? 500 : 400;
+        res.status(status).send(err instanceof Error ? err.message : 'OIDC callback failed');
     }
 }));
 
@@ -753,6 +764,11 @@ app.use((err, req, res, next) => {
 
     if (res.headersSent) {
         next(err);
+        return;
+    }
+
+    if (err instanceof CallbackUrlConfigurationError) {
+        res.status(500).send(err.message);
         return;
     }
 
