@@ -1,40 +1,39 @@
 name: build
 
-on: 
-    push:
-        branches:
-        - main
+on:
+  push:
+    branches:
+      - main
 
 jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
     permissions:
-      contents: write # to be able to publish a GitHub release
-      issues: write # to be able to comment on released issues
-      pull-requests: write # to be able to comment on released pull requests
-      id-token: write # to enable use of OIDC for npm provenance
+      contents: write
+      issues: write
+      pull-requests: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Release Please
+        id: release
+        uses: googleapis/release-please-action@v4
         with:
-          fetch-depth: 0
-      - name: Semantic Release
-        uses: cycjimmy/semantic-release-action@v4
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - run: echo ${{ steps.semantic_release.outputs.new_release_published }}
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
     outputs:
-      new_release_published: ${{ steps.semantic_release.outputs.new_release_published }}
-      new_release_version: ${{ steps.semantic_release.outputs.new_release_version }}
-      latest_release_version: ${{ steps.semantic_release.outputs.latest_release_version }}
+      release_created: ${{ steps.release.outputs.release_created }}
+      version: ${{ steps.release.outputs.version }}
+      major: ${{ steps.release.outputs.major }}
+      minor: ${{ steps.release.outputs.minor }}
 
   build:
     name: Build
     needs: release
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
     steps:
     - uses: actions/checkout@v4
       with:
@@ -68,13 +67,10 @@ jobs:
         # generate Docker tags based on the following events/attributes
         tags: |
           type=sha,prefix=sha-,format=short,enable=true,priority=1100
-          type=schedule
           type=ref,event=branch
-          type=ref,event=pr
-          type=semver,pattern={{version}}
-          type=semver,pattern={{major}}.{{minor}}
-          type=semver,pattern={{major}}
-          type=raw,value=${{ env.RELEASE_VERSION }}
+          type=raw,value=${{ needs.release.outputs.version || '0.0.0' }},enable=${{ needs.release.outputs.release_created == 'true' }}
+          type=raw,value=${{ needs.release.outputs.major || '0' }}.${{ needs.release.outputs.minor || '0' }},enable=${{ needs.release.outputs.release_created == 'true' }}
+          type=raw,value=${{ needs.release.outputs.major || '0' }},enable=${{ needs.release.outputs.release_created == 'true' }}
 
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
@@ -86,11 +82,12 @@ jobs:
         labels: ${{ steps.meta.outputs.labels }}
         sbom: true
 
-    - name: Update yaml
+    - name: Update Kustomize image tag
+      if: needs.release.outputs.release_created == 'true'
       uses: fjogeleit/yaml-update-action@main
       with:
-        valueFile: 'k8s/deployment.yaml'
-        propertyPath: 'spec.template.spec.containers[0].image'
-        value: ghcr.io/fhswf/openai-proxy:${{ env.DOCKER_METADATA_OUTPUT_VERSION }}
+        valueFile: 'k8s/kustomization.yaml'
+        propertyPath: 'images[0].newTag'
+        value: ${{ needs.release.outputs.version }}
         branch: main
-        message: 'Update image to ${{ env.DOCKER_METADATA_OUTPUT_VERSION }} [skip ci]'
+        message: 'Update image to ${{ needs.release.outputs.version }} [skip ci]'
