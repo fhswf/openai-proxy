@@ -4,7 +4,6 @@ metadata:
   labels:
     io.kompose.service: proxy
   name: proxy
-  namespace: openai-proxy
 spec:
   replicas: 10
   selector:
