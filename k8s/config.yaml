@@ -107,31 +107,7 @@ data:
   oidc.post_logout_redirect_uri: https://login.ki.fh-swf.de/openai/ui/index.html
 kind: ConfigMap
 metadata:
-  creationTimestamp: "2024-03-12T09:25:27Z"
   labels:
     io.portainer.kubernetes.configuration.owner: ""
-  managedFields:
-    - apiVersion: v1
-      fieldsType: FieldsV1
-      fieldsV1:
-        f:data:
-          .: {}
-          f:api.base_url: {}
-          f:api.prefix: {}
-          f:api.url: {}
-          f:node.extra_ca_certs: {}
-          f:cors.origins: {}
-          f:oidc.issuer: {}
-          f:oidc.redirect_uris: {}
-          f:oidc.post_logout_redirect_uri: {}
-        f:metadata:
-          f:labels:
-            .: {}
-            f:io.portainer.kubernetes.configuration.owner: {}
-      manager: Mozilla
-      operation: Update
-      time: "2024-03-13T10:35:04Z"
   name: proxy-config
   namespace: openai-proxy
-  resourceVersion: "3752766"
-  uid: 262d0d4d-a940-47df-96e4-238ee1fb3e00
