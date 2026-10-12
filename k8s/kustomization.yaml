@@ -10,4 +10,4 @@ resources:
   - services.yaml
 images:
   - name: ghcr.io/fhswf/openai-proxy
-    newTag: sha-a89bf71
+    newTag: 0.23.0
