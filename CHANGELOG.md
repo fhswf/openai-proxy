@@ -33,6 +33,16 @@
 
 * add functions to handle forwarded headers for callback URL construction ([2b32afc](https://github.com/fhswf/openai-proxy/commit/2b32afc6e07757f4aeeda31df81fb2eabf72659d))
 
+## [0.24.2](https://github.com/fhswf/openai-proxy/compare/openai-proxy-v0.24.1...openai-proxy-v0.24.2) (2026-10-12)
+
+
+### Bug Fixes
+
+* **deployment:** remove DEBUG environment variable from proxy deployment ([3e9d281](https://github.com/fhswf/openai-proxy/commit/3e9d281dfa57c66dd3966de45c0aa07ba887d999))
+* handle cookies for dev environment ([bcbf25d](https://github.com/fhswf/openai-proxy/commit/bcbf25ddfe3598a420871b42cece3e06692a819a))
+* include origin in token cookie setting ([56456ff](https://github.com/fhswf/openai-proxy/commit/56456ff9ba7b2b4ea913dac48a77f4ffec47e520))
+* **kustomization:** update OIDC issuer URL in configMap ([5178dcf](https://github.com/fhswf/openai-proxy/commit/5178dcfb1dcafdba79b1cb99d96189fa70a762ae))
+
 ## [0.24.1](https://github.com/fhswf/openai-proxy/compare/openai-proxy-v0.24.0...openai-proxy-v0.24.1) (2026-10-12)
 
 
