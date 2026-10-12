@@ -33,6 +33,13 @@
 
 * add functions to handle forwarded headers for callback URL construction ([2b32afc](https://github.com/fhswf/openai-proxy/commit/2b32afc6e07757f4aeeda31df81fb2eabf72659d))
 
+## [0.24.3](https://github.com/fhswf/openai-proxy/compare/openai-proxy-v0.24.2...openai-proxy-v0.24.3) (2026-10-12)
+
+
+### Bug Fixes
+
+* enhance return state handling with callback URL support ([ebbe1fe](https://github.com/fhswf/openai-proxy/commit/ebbe1fe4d87f5def3c576692856eaef3fd84256f))
+
 ## [0.24.2](https://github.com/fhswf/openai-proxy/compare/openai-proxy-v0.24.1...openai-proxy-v0.24.2) (2026-10-12)
 
 
