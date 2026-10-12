@@ -33,6 +33,13 @@
 
 * add functions to handle forwarded headers for callback URL construction ([2b32afc](https://github.com/fhswf/openai-proxy/commit/2b32afc6e07757f4aeeda31df81fb2eabf72659d))
 
+## [0.24.1](https://github.com/fhswf/openai-proxy/compare/openai-proxy-v0.24.0...openai-proxy-v0.24.1) (2026-10-12)
+
+
+### Bug Fixes
+
+* **deployment:** remove namespace declaration from proxy deployment ([1b77b89](https://github.com/fhswf/openai-proxy/commit/1b77b89d2b9163f705a5d236c3eeba2f4f41833b))
+
 ## [0.24.0](https://github.com/fhswf/openai-proxy/compare/openai-proxy-v0.23.0...openai-proxy-v0.24.0) (2026-10-12)
 
 
