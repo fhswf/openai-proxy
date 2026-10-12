@@ -33,6 +33,19 @@
 
 * add functions to handle forwarded headers for callback URL construction ([2b32afc](https://github.com/fhswf/openai-proxy/commit/2b32afc6e07757f4aeeda31df81fb2eabf72659d))
 
+## [0.24.0](https://github.com/fhswf/openai-proxy/compare/openai-proxy-v0.23.0...openai-proxy-v0.24.0) (2026-10-12)
+
+
+### Features
+
+* **config:** restructure configuration management and add extra CA certificates ([4cadeed](https://github.com/fhswf/openai-proxy/commit/4cadeeddf0af5ebb79d8dd4d28e537298d7f2aee))
+
+
+### Bug Fixes
+
+* **deployment:** update api.rate_limit to be a string in config.yaml ([686f565](https://github.com/fhswf/openai-proxy/commit/686f5654af06162bab246e1e994d1567d5e92841))
+* **deployment:** update api.rate_limit to be a string in config.yaml ([3cdf824](https://github.com/fhswf/openai-proxy/commit/3cdf8245315abbce05b74c985b070830df0038e7))
+
 ## [0.23.0](https://github.com/fhswf/openai-proxy/compare/openai-proxy-v0.22.1...openai-proxy-v0.23.0) (2026-10-12)
 
 
