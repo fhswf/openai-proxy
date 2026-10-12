@@ -6,6 +6,18 @@ const mongo = new MongoClient(MONGO_URL);
 
 let db: Db | null = null;
 
+/**
+ * Access the connected database. Throws when the connection has not been
+ * established so callers fail fast instead of dereferencing null.
+ */
+export function getDb(): Db {
+    if (!db) {
+        throw new Error('Database not connected');
+    }
+
+    return db;
+}
+
 export async function mongo_connect() {
     await mongo.connect();
     db = mongo.db('accounting');

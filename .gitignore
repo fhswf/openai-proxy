@@ -4,3 +4,4 @@ node_modules/**
 !.env.project
 !.env.vault
 dist/*
+test-results/

@@ -10,6 +10,7 @@
     "build": "tsc",
     "dev": "NODE_EXTRA_CA_CERTS=certs/ca-certificates.crt node --watch src/index.ts",
     "test": "node --test --experimental-strip-types --test-concurrency=1 \"test/**/*.test.ts\"",
+    "test:ci": "mkdir -p test-results && node --test --experimental-strip-types --test-concurrency=1 --test-reporter=spec --test-reporter=junit --test-reporter-destination=stdout --test-reporter-destination=test-results/junit.xml \"test/**/*.test.ts\"",
     "typecheck": "tsc --noEmit"
   },
   "author": "Christian Gawron",

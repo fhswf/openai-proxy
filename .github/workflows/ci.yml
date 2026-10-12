@@ -25,6 +25,14 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
       - name: Run tests
-        run: npm test
+        run: npm run test:ci
+      - name: Upload test results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: node-test-results
+          path: test-results/*.xml
+          if-no-files-found: warn
+          retention-days: 7
       - name: Build
         run: npm run build
