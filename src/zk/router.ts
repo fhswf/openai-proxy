@@ -1,7 +1,7 @@
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import { byteLength, randomBytes, toBase64Url } from './base64.ts';
-import type { ZkStore } from './types.ts';
+import type { EnvelopeAlgorithm, UserKeyAlgorithm, ZkStore } from './types.ts';
 import { verifyAssertion } from './webauthn.ts';
 import type { WebAuthnConfig } from './webauthn.ts';
 
@@ -15,7 +15,8 @@ const MAX_WRAPPED_KEY_BYTES = 256;
 const MAX_IV_BYTES = 16;
 const MAX_CREDENTIAL_ID_BYTES = 1024;
 const MAX_PUBLIC_KEY_BYTES = 2048;
-const MAX_ENCRYPTED_SK_BYTES = 2048;
+// Wrapped PKCS#8 private keys can exceed 2 KiB for RSA-4096 keys.
+const MAX_ENCRYPTED_SK_BYTES = 16 * 1024;
 const MAX_ID_LENGTH = 128;
 
 /**
@@ -86,6 +87,64 @@ function requireOptionalBase64(
     }
 
     return requireBase64(value, field, options);
+}
+
+function requireUserKeyAlgorithm(
+    value: unknown,
+    defaultValue: UserKeyAlgorithm = 'RSA-OAEP-SHA256',
+): UserKeyAlgorithm {
+    if (value == null) return defaultValue;
+    if (value === 'RSA-OAEP-SHA256' || value === 'ECDH-P256') return value;
+    throw new ZkError(400, 'invalid_payload', 'publicKeyAlgorithm is unsupported');
+}
+
+function requireEnvelopeAlgorithm(value: unknown): EnvelopeAlgorithm {
+    // Omitted algorithms identify envelopes written before algorithm metadata
+    // was added; those used direct RSA-OAEP wrapping.
+    if (value == null || value === 'RSA-OAEP-SHA256') return 'RSA-OAEP-SHA256';
+    if (value === 'ECDH-P256-HKDF-SHA256-AES-256-GCM') return value;
+    throw new ZkError(400, 'invalid_payload', 'envelopeAlgorithm is unsupported');
+}
+
+function requireEnvelope(body: Record<string, unknown>, field: string) {
+    const envelopeAlgorithm = requireEnvelopeAlgorithm(body.envelopeAlgorithm);
+    const wrappedKey = requireBase64(body.wrappedKey, `${field}.wrappedKey`, {
+        min: envelopeAlgorithm === 'ECDH-P256-HKDF-SHA256-AES-256-GCM' ? 48 : 1,
+        max: MAX_WRAPPED_KEY_BYTES,
+    });
+
+    if (envelopeAlgorithm === 'ECDH-P256-HKDF-SHA256-AES-256-GCM') {
+        if (byteLength(wrappedKey) !== 48) {
+            throw new ZkError(400, 'invalid_payload', `${field}.wrappedKey must contain a 32-byte AES-GCM key and tag`);
+        }
+
+        return {
+            envelopeAlgorithm,
+            wrappedKey,
+            wrappedKeyIv: requireBase64(body.wrappedKeyIv, `${field}.wrappedKeyIv`, { min: 12, max: 12 }),
+            ephemeralPublicKey: requireBase64(body.ephemeralPublicKey, `${field}.ephemeralPublicKey`, {
+                min: 1,
+                max: MAX_PUBLIC_KEY_BYTES,
+            }),
+        };
+    }
+
+    if (body.ephemeralPublicKey != null) {
+        throw new ZkError(400, 'invalid_payload', `${field}.ephemeralPublicKey is only valid for ECDH envelopes`);
+    }
+
+    return {
+        envelopeAlgorithm,
+        wrappedKey,
+        wrappedKeyIv: requireOptionalBase64(body.wrappedKeyIv, `${field}.wrappedKeyIv`, { max: MAX_IV_BYTES }),
+        ephemeralPublicKey: null,
+    };
+}
+
+function envelopeAlgorithmForKey(algorithm: UserKeyAlgorithm): EnvelopeAlgorithm {
+    return algorithm === 'ECDH-P256'
+        ? 'ECDH-P256-HKDF-SHA256-AES-256-GCM'
+        : 'RSA-OAEP-SHA256';
 }
 
 function requireId(value: unknown, field: string): string {
@@ -164,6 +223,7 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
 
         const credentialId = requireBase64(body.credentialId, 'credentialId', { min: 1, max: MAX_CREDENTIAL_ID_BYTES });
         const credentialPublicKey = requireBase64(body.credentialPublicKey, 'credentialPublicKey', { min: 1, max: MAX_PUBLIC_KEY_BYTES });
+        const publicKeyAlgorithm = requireUserKeyAlgorithm(body.publicKeyAlgorithm);
         const publicKey = requireBase64(body.publicKey, 'publicKey', { min: 1, max: MAX_PUBLIC_KEY_BYTES });
         const encryptedSk = requireBase64(body.encryptedSk, 'encryptedSk', { min: 1, max: MAX_ENCRYPTED_SK_BYTES });
         const encryptedSkIv = requireBase64(body.encryptedSkIv, 'encryptedSkIv', { min: 1, max: MAX_IV_BYTES });
@@ -184,6 +244,7 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
             userId,
             credentialId,
             credentialPublicKey,
+            publicKeyAlgorithm,
             publicKey,
             encryptedSk,
             encryptedSkIv,
@@ -270,6 +331,7 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
         res.json({
             userId: record.userId,
             credentialId: record.credentialId,
+            publicKeyAlgorithm: record.publicKeyAlgorithm,
             publicKey: record.publicKey,
             ...(unlocked ? {
                 encryptedSk: record.encryptedSk,
@@ -291,7 +353,11 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
             throw new ZkError(404, 'not_found', 'Unknown user');
         }
 
-        res.json({ userId: record.userId, publicKey: record.publicKey });
+        res.json({
+            userId: record.userId,
+            publicKeyAlgorithm: record.publicKeyAlgorithm,
+            publicKey: record.publicKey,
+        });
     }));
 
     // --- Chats -----------------------------------------------------------
@@ -331,6 +397,8 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
             metadataIv: chat.metadataIv,
             envelopes: envelopes.map(envelope => ({
                 recipientId: envelope.recipient_id,
+                envelopeAlgorithm: envelope.envelope_algorithm,
+                ephemeralPublicKey: envelope.ephemeral_public_key,
                 wrappedKey: envelope.wrapped_key,
                 wrappedKeyIv: envelope.wrapped_key_iv,
             })),
@@ -352,8 +420,11 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
             throw new ZkError(400, 'invalid_payload', 'selfEnvelope is required');
         }
 
-        const wrappedKey = requireBase64(selfEnvelope.wrappedKey, 'selfEnvelope.wrappedKey', { min: 1, max: MAX_WRAPPED_KEY_BYTES });
-        const wrappedKeyIv = requireOptionalBase64(selfEnvelope.wrappedKeyIv, 'selfEnvelope.wrappedKeyIv', { max: MAX_IV_BYTES });
+        const parsedSelfEnvelope = requireEnvelope(selfEnvelope, 'selfEnvelope');
+        const userKeys = await store.getUserKeysByUserId(userId);
+        if (userKeys && parsedSelfEnvelope.envelopeAlgorithm !== envelopeAlgorithmForKey(userKeys.publicKeyAlgorithm)) {
+            throw new ZkError(400, 'invalid_payload', 'selfEnvelope algorithm does not match the registered public key');
+        }
 
         const baseRev = body.baseRev == null ? null : Number(body.baseRev);
         if (baseRev != null && (!Number.isInteger(baseRev) || baseRev < 0)) {
@@ -369,8 +440,10 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
         const selfEnvelopeRecord = {
             chat_id: id,
             recipient_id: userId,
-            wrapped_key: wrappedKey,
-            wrapped_key_iv: wrappedKeyIv,
+            envelope_algorithm: parsedSelfEnvelope.envelopeAlgorithm,
+            ephemeral_public_key: parsedSelfEnvelope.ephemeralPublicKey,
+            wrapped_key: parsedSelfEnvelope.wrappedKey,
+            wrapped_key_iv: parsedSelfEnvelope.wrappedKeyIv,
             is_owner: true,
             created_at: timestamp,
         };
@@ -409,8 +482,7 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
         const body = req.body ?? {};
 
         const recipientId = requireId(body.recipientId, 'recipientId');
-        const wrappedKey = requireBase64(body.wrappedKey, 'wrappedKey', { min: 1, max: MAX_WRAPPED_KEY_BYTES });
-        const wrappedKeyIv = requireOptionalBase64(body.wrappedKeyIv, 'wrappedKeyIv', { max: MAX_IV_BYTES });
+        const parsedEnvelope = requireEnvelope(body, 'body');
 
         if (!(await store.hasEnvelope(id, userId))) {
             throw new ZkError(403, 'forbidden', 'Caller has no key for this chat');
@@ -419,6 +491,9 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
         const recipient = await store.getUserKeysByUserId(recipientId);
         if (!recipient) {
             throw new ZkError(404, 'not_found', 'Recipient has no registered keys');
+        }
+        if (parsedEnvelope.envelopeAlgorithm !== envelopeAlgorithmForKey(recipient.publicKeyAlgorithm)) {
+            throw new ZkError(400, 'invalid_payload', 'Envelope algorithm does not match the recipient public key');
         }
 
         const chat = await store.getChat(id);
@@ -429,8 +504,10 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
         await store.upsertEnvelope({
             chat_id: id,
             recipient_id: recipientId,
-            wrapped_key: wrappedKey,
-            wrapped_key_iv: wrappedKeyIv,
+            envelope_algorithm: parsedEnvelope.envelopeAlgorithm,
+            ephemeral_public_key: parsedEnvelope.ephemeralPublicKey,
+            wrapped_key: parsedEnvelope.wrappedKey,
+            wrapped_key_iv: parsedEnvelope.wrappedKeyIv,
             is_owner: recipientId === chat.ownerId,
             created_at: now(),
         });
@@ -499,6 +576,7 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
         if (!existing) {
             throw new ZkError(404, 'not_found', 'No keys registered for this user');
         }
+        const publicKeyAlgorithm = requireUserKeyAlgorithm(body.publicKeyAlgorithm, existing.publicKeyAlgorithm);
 
         const credentialOwner = await store.getUserKeysByCredentialId(credentialId);
         if (credentialOwner && credentialOwner.userId !== userId) {
@@ -509,6 +587,7 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
             ...existing,
             credentialId,
             credentialPublicKey,
+            publicKeyAlgorithm,
             publicKey,
             encryptedSk,
             encryptedSkIv,

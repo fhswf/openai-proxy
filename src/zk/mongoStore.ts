@@ -12,6 +12,7 @@ interface UserKeysDoc {
     _id: string;
     credential_id: string;
     credential_public_key: string;
+    public_key_algorithm?: 'RSA-OAEP-SHA256' | 'ECDH-P256';
     public_key: string;
     encrypted_sk: string;
     encrypted_sk_iv: string;
@@ -43,6 +44,8 @@ interface ChatDoc {
 interface ChatKeyDoc {
     chat_id: string;
     recipient_id: string;
+    envelope_algorithm?: 'RSA-OAEP-SHA256' | 'ECDH-P256-HKDF-SHA256-AES-256-GCM';
+    ephemeral_public_key?: string | null;
     wrapped_key: string;
     wrapped_key_iv: string | null;
     is_owner: boolean;
@@ -96,6 +99,8 @@ export class MongoZkStore implements ZkStore {
             userId: doc._id,
             credentialId: doc.credential_id,
             credentialPublicKey: doc.credential_public_key,
+            // Documents created before algorithm metadata used RSA-OAEP.
+            publicKeyAlgorithm: doc.public_key_algorithm ?? 'RSA-OAEP-SHA256',
             publicKey: doc.public_key,
             encryptedSk: doc.encrypted_sk,
             encryptedSkIv: doc.encrypted_sk_iv,
@@ -125,6 +130,7 @@ export class MongoZkStore implements ZkStore {
                 $set: {
                     credential_id: record.credentialId,
                     credential_public_key: record.credentialPublicKey,
+                    public_key_algorithm: record.publicKeyAlgorithm,
                     public_key: record.publicKey,
                     encrypted_sk: record.encryptedSk,
                     encrypted_sk_iv: record.encryptedSkIv,
@@ -259,6 +265,8 @@ export class MongoZkStore implements ZkStore {
         return docs.map(doc => ({
             chat_id: doc.chat_id,
             recipient_id: doc.recipient_id,
+            envelope_algorithm: doc.envelope_algorithm ?? 'RSA-OAEP-SHA256',
+            ephemeral_public_key: doc.ephemeral_public_key ?? null,
             wrapped_key: doc.wrapped_key,
             wrapped_key_iv: doc.wrapped_key_iv,
             is_owner: doc.is_owner,
@@ -275,6 +283,8 @@ export class MongoZkStore implements ZkStore {
         return {
             chat_id: doc.chat_id,
             recipient_id: doc.recipient_id,
+            envelope_algorithm: doc.envelope_algorithm ?? 'RSA-OAEP-SHA256',
+            ephemeral_public_key: doc.ephemeral_public_key ?? null,
             wrapped_key: doc.wrapped_key,
             wrapped_key_iv: doc.wrapped_key_iv,
             is_owner: doc.is_owner,
@@ -287,6 +297,8 @@ export class MongoZkStore implements ZkStore {
             chatKeyKey(record.chat_id, record.recipient_id),
             {
                 $set: {
+                    envelope_algorithm: record.envelope_algorithm,
+                    ephemeral_public_key: record.ephemeral_public_key,
                     wrapped_key: record.wrapped_key,
                     wrapped_key_iv: record.wrapped_key_iv,
                     is_owner: record.is_owner,

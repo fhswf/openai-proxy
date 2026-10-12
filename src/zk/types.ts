@@ -1,7 +1,11 @@
+export type UserKeyAlgorithm = 'RSA-OAEP-SHA256' | 'ECDH-P256';
+export type EnvelopeAlgorithm = 'RSA-OAEP-SHA256' | 'ECDH-P256-HKDF-SHA256-AES-256-GCM';
+
 export interface UserKeysRecord {
     userId: string;
     credentialId: string;
     credentialPublicKey: string;
+    publicKeyAlgorithm: UserKeyAlgorithm;
     publicKey: string;
     encryptedSk: string;
     encryptedSkIv: string;
@@ -26,6 +30,8 @@ export interface ChatRecord {
 export interface ChatEnvelopeRecord {
     chat_id: string;
     recipient_id: string;
+    envelope_algorithm: EnvelopeAlgorithm;
+    ephemeral_public_key: string | null;
     wrapped_key: string;
     wrapped_key_iv: string | null;
     is_owner: boolean;
