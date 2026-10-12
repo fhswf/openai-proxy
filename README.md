@@ -45,6 +45,19 @@ The following environment variables are used to configure the proxy server:
 The proxy derives the OAuth callback URL from the public `Host`, `X-Forwarded-Host`,
 `X-Forwarded-Proto`, and `X-Forwarded-Prefix` headers. Each public callback URL must
 be present in both `REDIRECT_URIS` and the OIDC client's registered redirect URIs.
+For development behind a frontend proxy, `/login` also accepts an optional
+`callback_uri` parameter. It must exactly match an entry in `REDIRECT_URIS` and
+the OIDC client's registered redirect URIs. For example, a Vite server on port
+5173 can proxy `/api/*` to this backend and start login with:
+
+```
+/api/login?return_url=http%3A%2F%2Flocalhost%3A5173%2F&callback_uri=http%3A%2F%2Flocalhost%3A5173%2Fapi%2Fcallback
+```
+
+The dev server must proxy `/api/callback` to the backend's `/callback` route and
+proxy API requests through the same localhost origin. The token cookie is then
+host-only for `localhost`; browsers do not allow the hosted backend to set a
+cookie for `localhost` directly.
 
 ### Multiple frontends
 A single proxy can serve several frontends that live on different origins (for

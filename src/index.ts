@@ -47,9 +47,7 @@ const logRequestError = (message, err, req?) => {
         error: serializeError(err),
         request: req ? {
             method: req.method,
-            originalUrl: req.originalUrl,
             path: req.path,
-            query: req.query,
             host: req.headers.host,
             forwardedHost: req.headers['x-forwarded-host'],
             forwardedProto: req.headers['x-forwarded-proto'],
@@ -299,14 +297,14 @@ const getTokenCandidates = (req) => {
     ].filter(Boolean)));
 };
 
-const setTokenCookie = (req, res, token, returnUrl) => {
-    const callbackHost = req.headers['x-forwarded-host'] || req.headers.host;
-    const callbackCookieDomain = getCookieDomain(callbackHost);
+const setTokenCookie = (req, res, token, returnUrl, callbackUri?: string) => {
+    const callbackUrl = new URL(callbackUri || getRequestOrigin(req));
+    const callbackCookieDomain = getCookieDomain(callbackUrl.host);
     let cookieDomain = callbackCookieDomain;
     let sameSite: 'lax' | 'none' = 'lax';
 
     try {
-        const frontendUrl = new URL(returnUrl, getRequestOrigin(req));
+        const frontendUrl = new URL(returnUrl, callbackUrl.origin);
         const frontendHostname = frontendUrl.hostname.toLowerCase();
 
         // A browser cannot set a localhost cookie from the hosted callback.
@@ -317,7 +315,7 @@ const setTokenCookie = (req, res, token, returnUrl) => {
 
         // The frontend may call the proxy from a different site (for example
         // localhost:5173 calling the hosted proxy), which requires SameSite=None.
-        if (frontendUrl.origin !== getRequestOrigin(req)) {
+        if (frontendUrl.origin !== callbackUrl.origin) {
             sameSite = 'none';
         }
     }
@@ -380,8 +378,10 @@ class CallbackUrlConfigurationError extends Error {
     }
 }
 
-const getConfiguredCallbackUrl = (req) => {
-    const callbackUrl = getCallbackUrl(req);
+const getConfiguredCallbackUrl = (req, requestedCallbackUri?: string) => {
+    const callbackUrl = requestedCallbackUri
+        ? new URL(requestedCallbackUri)
+        : getCallbackUrl(req);
     if (!REDIRECT_URIS.includes(callbackUrl.toString())) {
         throw new CallbackUrlConfigurationError(callbackUrl);
     }
@@ -424,7 +424,12 @@ const limiter = rateLimit({
 app.get('/ip', (request, response) => response.send(request.ip))
 
 app.get('/login', asyncRoute(async (req, res) => {
-    const redirect_uri = getConfiguredCallbackUrl(req);
+    const requestedCallbackUri = req.query.callback_uri;
+    if (requestedCallbackUri !== undefined && typeof requestedCallbackUri !== 'string') {
+        throw new Error('callback_uri must be a single URL');
+    }
+
+    const redirect_uri = getConfiguredCallbackUrl(req, requestedCallbackUri);
     logger.debug('login callback URL', { redirect_uri: redirect_uri.toString() });
 
     const returnUrl = getReturnUrl(req);
@@ -437,6 +442,17 @@ app.get('/login', asyncRoute(async (req, res) => {
         redirect_uri: redirect_uri.toString(),
         state,
     });
+    const authorizationRedirectUri = new URL(authorizationUrl).searchParams.get('redirect_uri');
+    logger.debug('login authorization request', {
+        client_id: CLIENT_ID,
+        token_endpoint: client.issuer.token_endpoint,
+        redirect_uri: authorizationRedirectUri,
+    });
+    if (authorizationRedirectUri !== redirect_uri.toString()) {
+        throw new Error(
+            `OIDC authorization request redirect_uri ${authorizationRedirectUri} does not match callback URL ${redirect_uri}`,
+        );
+    }
 
     const loginCookieDomain = getCookieDomain(req.headers['x-forwarded-host'] || req.headers.host);
     clearCookieVariants(req, res, RETURN_URL_COOKIE_NAME);
@@ -487,9 +503,11 @@ app.get('/callback', asyncRoute(async (req, res) => {
             redirect_uri = getConfiguredCallbackUrl(req).toString();
         }
 
-        logger.debug('callback redirect URL', { redirect_uri });
-        logger.debug('req.headers', req.headers);
-        logger.debug('req: ', req.protocol, req.hostname, req.baseUrl, req.url, req.originalUrl, req.path, req.query);
+        logger.debug('callback token exchange', {
+            client_id: CLIENT_ID,
+            token_endpoint: client.issuer.token_endpoint,
+            redirect_uri,
+        });
 
         // The return URL travels in the signed OAuth state so the login flow
         // works for frontends that cannot receive the proxy's return_url
@@ -507,7 +525,7 @@ app.get('/callback', asyncRoute(async (req, res) => {
         const cookieReturnUrl = getCookieValues(req, RETURN_URL_COOKIE_NAME).at(-1) || req.cookies[RETURN_URL_COOKIE_NAME];
         const return_url = stateData?.returnUrl
             || resolveReturnUrl(cookieReturnUrl, getRequestOrigin(req), RETURN_URL_ORIGINS);
-        setTokenCookie(req, res, token, return_url);
+        setTokenCookie(req, res, token, return_url, redirect_uri);
         clearCookieVariants(req, res, RETURN_URL_COOKIE_NAME);
         res.redirect(return_url);
     }
