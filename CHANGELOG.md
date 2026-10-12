@@ -33,6 +33,13 @@
 
 * add functions to handle forwarded headers for callback URL construction ([2b32afc](https://github.com/fhswf/openai-proxy/commit/2b32afc6e07757f4aeeda31df81fb2eabf72659d))
 
+## [0.25.0](https://github.com/fhswf/openai-proxy/compare/openai-proxy-v0.24.3...openai-proxy-v0.25.0) (2026-10-12)
+
+
+### Features
+
+* add support for callback URI in login flow and enhance redirect URI validation ([cfcb074](https://github.com/fhswf/openai-proxy/commit/cfcb074ccc4eb1aa3686e9b3999a7ae28efcac3c))
+
 ## [0.24.3](https://github.com/fhswf/openai-proxy/compare/openai-proxy-v0.24.2...openai-proxy-v0.24.3) (2026-10-12)
 
 
