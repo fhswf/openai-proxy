@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using these metadata."
+type: software
+title: "Proxy server for the OpenAI API"
+abstract: >-
+  An OpenAI API proxy that uses OpenID Connect to authenticate users and adds
+  an API key when forwarding requests to the OpenAI API.
+authors:
+  - family-names: Gawron
+    given-names: Christian
+    email: gawron.christian@fh-swf.de
+    orcid: "https://orcid.org/0000-0001-7139-7920"
+version: 0.27.0
+license: MIT
+repository-code: "https://github.com/fhswf/openai-proxy"

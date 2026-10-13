@@ -11,7 +11,8 @@ const ASSERTION_TTL_MS = 15 * 60 * 1000;
 
 const MAX_CIPHERTEXT_BYTES = 5 * 1024 * 1024;
 const MAX_METADATA_BYTES = 64 * 1024;
-const MAX_WRAPPED_KEY_BYTES = 256;
+// Retain envelopes from the previous RSA-OAEP-4096 client (512 bytes).
+const MAX_WRAPPED_KEY_BYTES = 1024;
 const MAX_IV_BYTES = 16;
 const MAX_CREDENTIAL_ID_BYTES = 1024;
 const MAX_PUBLIC_KEY_BYTES = 2048;
