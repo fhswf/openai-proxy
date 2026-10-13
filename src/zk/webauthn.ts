@@ -8,8 +8,8 @@ const MIN_AUTH_DATA_LENGTH = 37;
 const AUTH_DATA_VERIFY_LENGTH = 37;
 
 export interface WebAuthnConfig {
-    /** Relying-party id, i.e. the effective domain the credential is bound to. */
-    rpId: string;
+    /** Optional fixed RP ID. By default the hostname of the allowlisted origin is used. */
+    rpId?: string;
     /** Origins that are accepted in the clientDataJSON. */
     origins: string[];
 }
@@ -115,7 +115,21 @@ export function verifyAssertion(
         return { ok: false, reason: 'user_presence_required' };
     }
 
-    const rpIdHash = sha256(config.rpId);
+    // The frontend creates credentials with its own hostname as the RP ID.
+    // The client origin is checked against the server's allowlist above, so
+    // deriving the default from it supports localhost and multiple frontends
+    // without coupling the passkey RP ID to the unrelated OIDC issuer host.
+    let rpId = config.rpId;
+    if (!rpId) {
+        try {
+            rpId = new URL(clientData.origin!).hostname;
+        }
+        catch {
+            return { ok: false, reason: 'origin_mismatch' };
+        }
+    }
+
+    const rpIdHash = sha256(rpId);
     if (!parsed.rpIdHash.equals(rpIdHash)) {
         return { ok: false, reason: 'rp_id_mismatch' };
     }

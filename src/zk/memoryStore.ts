@@ -3,6 +3,7 @@ import type {
     ChatRecord,
     ChatSummary,
     PendingChallengeRecord,
+    UserCredentialRecord,
     UserKeysRecord,
     ZkStore,
 } from './types.ts';
@@ -16,7 +17,7 @@ const clone = <T>(value: T): T => structuredClone(value);
  */
 export class MemoryZkStore implements ZkStore {
     private userKeysById = new Map<string, UserKeysRecord>();
-    private userKeysByCredential = new Map<string, UserKeysRecord>();
+    private userKeysByCredential = new Map<string, UserCredentialRecord>();
     private challenges = new Map<string, PendingChallengeRecord>();
     private chats = new Map<string, ChatRecord>();
     private envelopes = new Map<string, ChatEnvelopeRecord>();
@@ -34,36 +35,77 @@ export class MemoryZkStore implements ZkStore {
         return record ? clone(record) : null;
     }
 
-    async getUserKeysByCredentialId(credentialId: string): Promise<UserKeysRecord | null> {
+    async getUserCredentialById(credentialId: string): Promise<UserCredentialRecord | null> {
         const record = this.userKeysByCredential.get(credentialId);
         return record ? clone(record) : null;
     }
 
     async upsertUserKeys(record: UserKeysRecord): Promise<void> {
         const existing = this.userKeysById.get(record.userId);
-        if (existing && existing.credentialId !== record.credentialId) {
-            this.userKeysByCredential.delete(existing.credentialId);
+        for (const credential of record.credentials) {
+            const owner = this.userKeysByCredential.get(credential.credentialId);
+            if (owner && owner.userKeys.userId !== record.userId) {
+                throw new Error('Credential already registered to another user');
+            }
         }
+
         const stored: UserKeysRecord = {
             ...record,
+            credentials: record.credentials.map(credential => ({ ...credential })),
             createdAt: existing?.createdAt ?? record.createdAt,
             updatedAt: record.updatedAt,
         };
+
+        for (const credential of existing?.credentials ?? []) {
+            this.userKeysByCredential.delete(credential.credentialId);
+        }
         this.userKeysById.set(stored.userId, stored);
-        this.userKeysByCredential.set(stored.credentialId, stored);
+        for (const credential of stored.credentials) {
+            this.userKeysByCredential.set(credential.credentialId, {
+                userKeys: stored,
+                credential,
+            });
+        }
     }
 
     async deleteUserKeys(userId: string): Promise<void> {
         const existing = this.userKeysById.get(userId);
         if (!existing) return;
         this.userKeysById.delete(userId);
-        this.userKeysByCredential.delete(existing.credentialId);
+        for (const credential of existing.credentials) {
+            this.userKeysByCredential.delete(credential.credentialId);
+        }
     }
 
-    async markAsserted(userId: string, at: Date): Promise<void> {
+    async deleteUserCredential(userId: string, credentialId: string): Promise<void> {
+        const existing = this.userKeysById.get(userId);
+        if (!existing) return;
+        const credential = existing.credentials.find(item => item.credentialId === credentialId);
+        if (!credential) return;
+        existing.credentials = existing.credentials.filter(item => item.credentialId !== credentialId);
+        this.userKeysByCredential.delete(credentialId);
+        for (const item of existing.credentials) {
+            this.userKeysByCredential.set(item.credentialId, {
+                userKeys: existing,
+                credential: item,
+            });
+        }
+    }
+
+    async renameUserCredential(userId: string, credentialId: string, name: string, at: Date): Promise<void> {
+        const record = this.userKeysById.get(userId);
+        const credential = record?.credentials.find(item => item.credentialId === credentialId);
+        if (!record || !credential) return;
+        credential.name = name;
+        credential.updatedAt = at;
+        record.updatedAt = at;
+    }
+
+    async markAsserted(userId: string, credentialId: string, at: Date): Promise<void> {
         const record = this.userKeysById.get(userId);
         if (record) {
-            record.assertedAt = at;
+            const credential = record.credentials.find(item => item.credentialId === credentialId);
+            if (credential) credential.assertedAt = at;
         }
     }
 

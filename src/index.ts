@@ -659,18 +659,7 @@ const createZkStore = (): ZkStore => {
     return new MongoZkStore(getDb);
 };
 
-const resolveRpId = (): string => {
-    if (WEBAUTHN_RP_ID) {
-        return WEBAUTHN_RP_ID;
-    }
-
-    try {
-        return new URL(ISSUER).hostname;
-    }
-    catch {
-        return 'localhost';
-    }
-};
+const resolveRpId = (): string | undefined => WEBAUTHN_RP_ID;
 
 const zkStore = createZkStore();
 const zkAttestor = KeyAttestor.fromEnvironment();

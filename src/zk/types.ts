@@ -13,20 +13,33 @@ export interface UserIdentityClaims {
     observedAt?: string;
 }
 
+export interface UserPasskeyRecord {
+    credentialId: string;
+    name: string;
+    credentialPublicKey: string;
+    encryptedSk: string;
+    encryptedSkIv: string;
+    /** Timestamp of the last successful assertion with this credential. */
+    assertedAt: Date | null;
+    createdAt: Date;
+    updatedAt: Date;
+}
+
 export interface UserKeysRecord {
     userId: string;
-    credentialId: string;
-    credentialPublicKey: string;
     publicKeyAlgorithm: UserKeyAlgorithm;
     publicKey: string;
     /** Identity claims from the authenticated registration or rotation. */
     identity?: UserIdentityClaims | null;
-    encryptedSk: string;
-    encryptedSkIv: string;
-    /** Timestamp of the last successful WebAuthn assertion for this user. */
-    assertedAt: Date | null;
+    /** Each passkey has its own assertion key and wrapped copy of SK_user. */
+    credentials: UserPasskeyRecord[];
     createdAt: Date;
     updatedAt: Date;
+}
+
+export interface UserCredentialRecord {
+    userKeys: UserKeysRecord;
+    credential: UserPasskeyRecord;
 }
 
 export interface ChatRecord {
@@ -76,11 +89,13 @@ export interface ZkStore {
     init(): Promise<void>;
 
     getUserKeysByUserId(userId: string): Promise<UserKeysRecord | null>;
-    getUserKeysByCredentialId(credentialId: string): Promise<UserKeysRecord | null>;
+    getUserCredentialById(credentialId: string): Promise<UserCredentialRecord | null>;
     upsertUserKeys(record: UserKeysRecord): Promise<void>;
     deleteUserKeys(userId: string): Promise<void>;
+    deleteUserCredential(userId: string, credentialId: string): Promise<void>;
+    renameUserCredential(userId: string, credentialId: string, name: string, at: Date): Promise<void>;
     findUserKeysByPublicKey(publicKey: string): Promise<UserKeysRecord | null>;
-    markAsserted(userId: string, at: Date): Promise<void>;
+    markAsserted(userId: string, credentialId: string, at: Date): Promise<void>;
 
     saveChallenge(record: PendingChallengeRecord): Promise<void>;
     takeChallenge(challenge: string): Promise<PendingChallengeRecord | null>;

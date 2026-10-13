@@ -19,6 +19,7 @@ const MAX_CREDENTIAL_ID_BYTES = 1024;
 const MAX_PUBLIC_KEY_BYTES = 2048;
 // Wrapped PKCS#8 private keys can exceed 2 KiB for RSA-4096 keys.
 const MAX_ENCRYPTED_SK_BYTES = 16 * 1024;
+const MAX_CREDENTIAL_NAME_LENGTH = 80;
 const MAX_ID_LENGTH = 128;
 
 /**
@@ -98,6 +99,20 @@ function requireUserKeyAlgorithm(
     if (value == null) return defaultValue;
     if (value === 'RSA-OAEP-SHA256' || value === 'ECDH-P256') return value;
     throw new ZkError(400, 'invalid_payload', 'publicKeyAlgorithm is unsupported');
+}
+
+function requireCredentialName(value: unknown): string {
+    if (value == null) return 'Passkey';
+    if (typeof value !== 'string') {
+        throw new ZkError(400, 'invalid_payload', 'credentialName must be a string');
+    }
+
+    const name = value.trim();
+    if (!name || name.length > MAX_CREDENTIAL_NAME_LENGTH || /[\u0000-\u001f\u007f]/.test(name)) {
+        throw new ZkError(400, 'invalid_payload', `credentialName must be 1-${MAX_CREDENTIAL_NAME_LENGTH} printable characters`);
+    }
+
+    return name;
 }
 
 function requireIdentityProfileDisclosure(value: unknown): boolean {
@@ -233,6 +248,7 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
         const userId = getUserId(req);
         const body = req.body ?? {};
         const includeIdentityProfile = requireIdentityProfileDisclosure(body.identityDisclosure);
+        const credentialName = requireCredentialName(body.credentialName);
 
         const credentialId = requireBase64(body.credentialId, 'credentialId', { min: 1, max: MAX_CREDENTIAL_ID_BYTES });
         const credentialPublicKey = requireBase64(body.credentialPublicKey, 'credentialPublicKey', { min: 1, max: MAX_PUBLIC_KEY_BYTES });
@@ -247,35 +263,49 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
             throw new ZkError(400, 'invalid_payload', 'Invalid or expired challenge');
         }
 
-        const credentialOwner = await store.getUserKeysByCredentialId(credentialId);
-        if (credentialOwner && credentialOwner.userId !== userId) {
+        const credentialOwner = await store.getUserCredentialById(credentialId);
+        if (credentialOwner && credentialOwner.userKeys.userId !== userId) {
             throw new ZkError(409, 'conflict', 'Credential already registered');
         }
 
         const existing = await store.getUserKeysByUserId(userId);
+        if (existing && (existing.publicKeyAlgorithm !== publicKeyAlgorithm || existing.publicKey !== publicKey)) {
+            throw new ZkError(409, 'key_mismatch', 'Adding a passkey must keep the existing user public key; use key rotation to replace it');
+        }
+        const existingCredential = existing?.credentials.find(item => item.credentialId === credentialId);
+        const timestamp = now();
+        const credential = {
+            credentialId,
+            name: credentialName,
+            credentialPublicKey,
+            encryptedSk,
+            encryptedSkIv,
+            assertedAt: existingCredential?.assertedAt ?? null,
+            createdAt: existingCredential?.createdAt ?? timestamp,
+            updatedAt: timestamp,
+        };
         const record = {
             userId,
-            credentialId,
-            credentialPublicKey,
             publicKeyAlgorithm,
             publicKey,
             identity: options.attestor
                 ? identityClaimsFromRequest(req['user'], userId, options.identityIssuer, includeIdentityProfile)
                 : null,
-            encryptedSk,
-            encryptedSkIv,
-            // Registration alone never unlocks encryptedSk; a WebAuthn
-            // assertion is required before the wrapped key can be fetched.
-            assertedAt:
-                existing?.credentialId === credentialId
-                    ? existing.assertedAt
-                    : null,
-            createdAt: existing?.createdAt ?? now(),
-            updatedAt: now(),
+            credentials: [
+                ...(existing?.credentials.filter(item => item.credentialId !== credentialId) ?? []),
+                credential,
+            ],
+            createdAt: existing?.createdAt ?? timestamp,
+            updatedAt: timestamp,
         };
         await store.upsertUserKeys(record);
 
-        res.status(201).json({ userId, createdAt: (existing?.createdAt ?? now()).toISOString() });
+        res.status(201).json({
+            userId,
+            credentialId,
+            credentialName,
+            createdAt: record.createdAt.toISOString(),
+        });
     }));
 
     router.post('/keys/assertion-challenge', writeLimiter, route(async (req, res) => {
@@ -283,8 +313,8 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
         const body = req.body ?? {};
         const credentialId = requireBase64(body.credentialId, 'credentialId', { min: 1, max: MAX_CREDENTIAL_ID_BYTES });
 
-        const record = await store.getUserKeysByCredentialId(credentialId);
-        if (!record || record.userId !== userId) {
+        const registeredCredential = await store.getUserCredentialById(credentialId);
+        if (!registeredCredential || registeredCredential.userKeys.userId !== userId) {
             throw new ZkError(404, 'not_found', 'Unknown credential');
         }
 
@@ -311,15 +341,15 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
             throw new ZkError(400, 'invalid_payload', 'Challenge is bound to a different credential');
         }
 
-        const record = await store.getUserKeysByUserId(userId);
-        if (!record || record.credentialId !== credentialId) {
+        const registeredCredential = await store.getUserCredentialById(credentialId);
+        if (!registeredCredential || registeredCredential.userKeys.userId !== userId) {
             throw new ZkError(404, 'not_found', 'No registered keys for this user');
         }
 
         const verdict = verifyAssertion(
             { credentialId, authenticatorData, clientDataJSON, signature },
             challenge,
-            record.credentialPublicKey,
+            registeredCredential.credential.credentialPublicKey,
             webauthn,
         );
 
@@ -327,7 +357,7 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
             throw new ZkError(401, 'unauthenticated', `Assertion rejected: ${verdict.reason}`);
         }
 
-        await store.markAsserted(userId, now());
+        await store.markAsserted(userId, credentialId, now());
         res.status(204).end();
     }));
 
@@ -338,22 +368,30 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
             throw new ZkError(404, 'not_found', 'No keys registered for this user');
         }
 
-        // credentialId and publicKey are needed to bootstrap an assertion on a
-        // new device. The wrapped private key, however, is only released after a
-        // recent WebAuthn assertion; otherwise it could be fetched and attacked
-        // offline.
-        const assertedAt = record.assertedAt?.getTime() ?? 0;
-        const unlocked = Date.now() - assertedAt <= ASSERTION_TTL_MS;
+        // Credential IDs and names bootstrap credential selection on a new
+        // device. Only the wrapped private key for the most recently asserted
+        // credential is released, and only for a short time.
+        const timestamp = Date.now();
+        const recentlyAsserted = record.credentials
+            .filter(credential => credential.assertedAt && timestamp - credential.assertedAt.getTime() <= ASSERTION_TTL_MS)
+            .sort((a, b) => (b.assertedAt?.getTime() ?? 0) - (a.assertedAt?.getTime() ?? 0))[0];
+        const selectedCredential = recentlyAsserted ?? record.credentials[0];
 
         res.json({
             userId: record.userId,
-            credentialId: record.credentialId,
+            credentialId: selectedCredential?.credentialId ?? null,
+            credentialName: selectedCredential?.name ?? null,
+            credentials: record.credentials.map(credential => ({
+                credentialId: credential.credentialId,
+                name: credential.name,
+                createdAt: credential.createdAt.toISOString(),
+            })),
             publicKeyAlgorithm: record.publicKeyAlgorithm,
             publicKey: record.publicKey,
             identityAttestation: options.attestor?.issue(record, options.identityIssuer) ?? null,
-            ...(unlocked ? {
-                encryptedSk: record.encryptedSk,
-                encryptedSkIv: record.encryptedSkIv,
+            ...(recentlyAsserted ? {
+                encryptedSk: recentlyAsserted.encryptedSk,
+                encryptedSkIv: recentlyAsserted.encryptedSkIv,
             } : {}),
         });
     }));
@@ -361,6 +399,38 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
     router.delete('/keys/me', writeLimiter, route(async (req, res) => {
         const userId = getUserId(req);
         await store.deleteUserKeys(userId);
+        res.status(204).end();
+    }));
+
+    router.patch('/keys/me/credentials/:credentialId', writeLimiter, route(async (req, res) => {
+        const userId = getUserId(req);
+        const credentialId = requireBase64(req.params.credentialId, 'credentialId', { min: 1, max: MAX_CREDENTIAL_ID_BYTES });
+        if (req.body?.credentialName == null) {
+            throw new ZkError(400, 'invalid_payload', 'credentialName is required');
+        }
+        const credentialName = requireCredentialName(req.body?.credentialName);
+        const record = await store.getUserKeysByUserId(userId);
+        if (!record?.credentials.some(item => item.credentialId === credentialId)) {
+            throw new ZkError(404, 'not_found', 'Unknown credential');
+        }
+
+        await store.renameUserCredential(userId, credentialId, credentialName, now());
+        res.json({ credentialId, credentialName });
+    }));
+
+    router.delete('/keys/me/credentials/:credentialId', writeLimiter, route(async (req, res) => {
+        const userId = getUserId(req);
+        const credentialId = requireBase64(req.params.credentialId, 'credentialId', { min: 1, max: MAX_CREDENTIAL_ID_BYTES });
+        const record = await store.getUserKeysByUserId(userId);
+        const credential = record?.credentials.find(item => item.credentialId === credentialId);
+        if (!record || !credential) {
+            throw new ZkError(404, 'not_found', 'Unknown credential');
+        }
+        if (record.credentials.length <= 1) {
+            throw new ZkError(409, 'last_credential', 'Cannot remove the last passkey; delete the key account instead');
+        }
+
+        await store.deleteUserCredential(userId, credentialId);
         res.status(204).end();
     }));
 
@@ -588,6 +658,7 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
         const userId = getUserId(req);
         const body = req.body ?? {};
         const includeIdentityProfile = requireIdentityProfileDisclosure(body.identityDisclosure);
+        const credentialName = requireCredentialName(body.credentialName);
 
         const credentialId = requireBase64(body.credentialId, 'credentialId', { min: 1, max: MAX_CREDENTIAL_ID_BYTES });
         const credentialPublicKey = requireBase64(body.credentialPublicKey, 'credentialPublicKey', { min: 1, max: MAX_PUBLIC_KEY_BYTES });
@@ -607,23 +678,30 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
         }
         const publicKeyAlgorithm = requireUserKeyAlgorithm(body.publicKeyAlgorithm, existing.publicKeyAlgorithm);
 
-        const credentialOwner = await store.getUserKeysByCredentialId(credentialId);
-        if (credentialOwner && credentialOwner.userId !== userId) {
+        const credentialOwner = await store.getUserCredentialById(credentialId);
+        if (credentialOwner && credentialOwner.userKeys.userId !== userId) {
             throw new ZkError(409, 'conflict', 'Credential already registered');
         }
 
         await store.upsertUserKeys({
             ...existing,
-            credentialId,
-            credentialPublicKey,
             publicKeyAlgorithm,
             publicKey,
             identity: options.attestor
                 ? identityClaimsFromRequest(req['user'], userId, options.identityIssuer, includeIdentityProfile)
                 : null,
-            encryptedSk,
-            encryptedSkIv,
-            assertedAt: null,
+            // Rotation replaces the user's key and therefore starts with one
+            // credential wrapper for the new key material.
+            credentials: [{
+                credentialId,
+                name: credentialName,
+                credentialPublicKey,
+                encryptedSk,
+                encryptedSkIv,
+                assertedAt: null,
+                createdAt: now(),
+                updatedAt: now(),
+            }],
             updatedAt: now(),
         });
 

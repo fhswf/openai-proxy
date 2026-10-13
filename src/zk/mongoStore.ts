@@ -4,17 +4,32 @@ import type {
     ChatRecord,
     ChatSummary,
     PendingChallengeRecord,
+    UserCredentialRecord,
     UserKeysRecord,
     ZkStore,
 } from './types.ts';
 
 interface UserKeysDoc {
     _id: string;
-    credential_id: string;
-    credential_public_key: string;
+    credentials?: UserPasskeyDoc[];
+    // Legacy mirror fields are retained for rolling compatibility with older
+    // proxy instances while a deployment is being upgraded.
+    credential_id?: string;
+    credential_public_key?: string;
     public_key_algorithm?: 'RSA-OAEP-SHA256' | 'ECDH-P256';
     public_key: string;
     identity_claims?: UserKeysRecord['identity'];
+    encrypted_sk?: string;
+    encrypted_sk_iv?: string;
+    asserted_at?: Date | null;
+    created_at: Date;
+    updated_at: Date;
+}
+
+interface UserPasskeyDoc {
+    credential_id: string;
+    name: string;
+    credential_public_key: string;
     encrypted_sk: string;
     encrypted_sk_iv: string;
     asserted_at: Date | null;
@@ -84,11 +99,21 @@ export class MongoZkStore implements ZkStore {
 
     async init(): Promise<void> {
         await this.users().createIndex({ credential_id: 1 }, { unique: true });
+        await this.users().createIndex({ 'credentials.credential_id': 1 }, { unique: true });
         await this.chatsCollection().createIndex({ owner_id: 1, updated_at: -1 });
         await this.chatKeys().createIndex({ recipient_id: 1 });
         await this.chatKeys().createIndex({ chat_id: 1, recipient_id: 1 }, { unique: true });
         // Expire abandoned challenges so they never linger as replay material.
         await this.challenges().createIndex({ expires_at: 1 }, { expireAfterSeconds: 0 });
+
+        // Upgrade existing single-credential documents in place. Keep the old
+        // flat fields as a mirror so older instances can continue reading them
+        // during a rolling deployment.
+        const legacyDocs = await this.users().find({ credentials: { $exists: false } }).toArray();
+        for (const doc of legacyDocs) {
+            const record = this.toUserKeys(doc);
+            if (record) await this.upsertUserKeys(record);
+        }
     }
 
     private toUserKeys(doc: UserKeysDoc | null): UserKeysRecord | null {
@@ -98,15 +123,31 @@ export class MongoZkStore implements ZkStore {
 
         return {
             userId: doc._id,
-            credentialId: doc.credential_id,
-            credentialPublicKey: doc.credential_public_key,
             // Documents created before algorithm metadata used RSA-OAEP.
             publicKeyAlgorithm: doc.public_key_algorithm ?? 'RSA-OAEP-SHA256',
             publicKey: doc.public_key,
             identity: doc.identity_claims ?? null,
-            encryptedSk: doc.encrypted_sk,
-            encryptedSkIv: doc.encrypted_sk_iv,
-            assertedAt: doc.asserted_at ?? null,
+            credentials: doc.credentials?.map(credential => ({
+                credentialId: credential.credential_id,
+                name: credential.name || 'Passkey',
+                credentialPublicKey: credential.credential_public_key,
+                encryptedSk: credential.encrypted_sk,
+                encryptedSkIv: credential.encrypted_sk_iv,
+                assertedAt: credential.asserted_at ?? null,
+                createdAt: credential.created_at,
+                updatedAt: credential.updated_at,
+            })) ?? (doc.credential_id && doc.credential_public_key && doc.encrypted_sk && doc.encrypted_sk_iv
+                ? [{
+                    credentialId: doc.credential_id,
+                    name: 'Passkey',
+                    credentialPublicKey: doc.credential_public_key,
+                    encryptedSk: doc.encrypted_sk,
+                    encryptedSkIv: doc.encrypted_sk_iv,
+                    assertedAt: doc.asserted_at ?? null,
+                    createdAt: doc.created_at,
+                    updatedAt: doc.updated_at,
+                }]
+                : []),
             createdAt: doc.created_at,
             updatedAt: doc.updated_at,
         };
@@ -116,8 +157,17 @@ export class MongoZkStore implements ZkStore {
         return this.toUserKeys(await this.users().findOne({ _id: userId }));
     }
 
-    async getUserKeysByCredentialId(credentialId: string): Promise<UserKeysRecord | null> {
-        return this.toUserKeys(await this.users().findOne({ credential_id: credentialId }));
+    async getUserCredentialById(credentialId: string): Promise<UserCredentialRecord | null> {
+        const doc = await this.users().findOne({
+            $or: [
+                { 'credentials.credential_id': credentialId },
+                { credential_id: credentialId },
+            ],
+        });
+        const userKeys = this.toUserKeys(doc);
+        if (!userKeys) return null;
+        const credential = userKeys.credentials.find(item => item.credentialId === credentialId);
+        return credential ? { userKeys, credential } : null;
     }
 
     async findUserKeysByPublicKey(publicKey: string): Promise<UserKeysRecord | null> {
@@ -126,23 +176,45 @@ export class MongoZkStore implements ZkStore {
 
     async upsertUserKeys(record: UserKeysRecord): Promise<void> {
         const existing = await this.users().findOne({ _id: record.userId });
+        const firstCredential = record.credentials[0];
         await this.users().updateOne(
             { _id: record.userId },
             {
                 $set: {
-                    credential_id: record.credentialId,
-                    credential_public_key: record.credentialPublicKey,
+                    credentials: record.credentials.map(credential => ({
+                        credential_id: credential.credentialId,
+                        name: credential.name,
+                        credential_public_key: credential.credentialPublicKey,
+                        encrypted_sk: credential.encryptedSk,
+                        encrypted_sk_iv: credential.encryptedSkIv,
+                        asserted_at: credential.assertedAt,
+                        created_at: credential.createdAt,
+                        updated_at: credential.updatedAt,
+                    })),
+                    ...(firstCredential ? {
+                        credential_id: firstCredential.credentialId,
+                        credential_public_key: firstCredential.credentialPublicKey,
+                        encrypted_sk: firstCredential.encryptedSk,
+                        encrypted_sk_iv: firstCredential.encryptedSkIv,
+                        asserted_at: firstCredential.assertedAt,
+                    } : {}),
                     public_key_algorithm: record.publicKeyAlgorithm,
                     public_key: record.publicKey,
                     identity_claims: record.identity ?? null,
-                    encrypted_sk: record.encryptedSk,
-                    encrypted_sk_iv: record.encryptedSkIv,
-                    asserted_at: record.assertedAt,
                     updated_at: record.updatedAt,
                 },
                 $setOnInsert: {
                     created_at: existing?.created_at ?? record.createdAt,
                 },
+                ...(!firstCredential ? {
+                    $unset: {
+                        credential_id: '',
+                        credential_public_key: '',
+                        encrypted_sk: '',
+                        encrypted_sk_iv: '',
+                        asserted_at: '',
+                    },
+                } : {}),
             },
             { upsert: true },
         );
@@ -152,8 +224,38 @@ export class MongoZkStore implements ZkStore {
         await this.users().deleteOne({ _id: userId });
     }
 
-    async markAsserted(userId: string, at: Date): Promise<void> {
-        await this.users().updateOne({ _id: userId }, { $set: { asserted_at: at } });
+    async deleteUserCredential(userId: string, credentialId: string): Promise<void> {
+        const existing = await this.getUserKeysByUserId(userId);
+        if (!existing) return;
+        const credentials = existing.credentials.filter(item => item.credentialId !== credentialId);
+        await this.upsertUserKeys({ ...existing, credentials, updatedAt: new Date() });
+    }
+
+    async renameUserCredential(userId: string, credentialId: string, name: string, at: Date): Promise<void> {
+        const existing = await this.getUserKeysByUserId(userId);
+        if (!existing) return;
+        const credentials = existing.credentials.map(credential => credential.credentialId === credentialId
+            ? { ...credential, name, updatedAt: at }
+            : credential);
+        await this.upsertUserKeys({ ...existing, credentials, updatedAt: at });
+    }
+
+    async markAsserted(userId: string, credentialId: string, at: Date): Promise<void> {
+        await this.users().updateOne(
+            { _id: userId, 'credentials.credential_id': credentialId },
+            {
+                $set: {
+                    'credentials.$.asserted_at': at,
+                    updated_at: at,
+                },
+            },
+        );
+        // Keep the legacy mirror's assertion timestamp in sync only when its
+        // mirrored credential was the one just asserted.
+        await this.users().updateOne(
+            { _id: userId, credential_id: credentialId },
+            { $set: { asserted_at: at } },
+        );
     }
 
     async saveChallenge(record: PendingChallengeRecord): Promise<void> {

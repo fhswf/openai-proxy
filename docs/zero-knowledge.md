@@ -33,11 +33,13 @@ are base64url-encoded.
 | Method | Path | Purpose |
 | --- | --- | --- |
 | POST | `/api/zk/keys/registration-challenge` | Issue a short-lived registration challenge |
-| POST | `/api/zk/keys` | Register keys; optional `identityDisclosure: "subject" | "profile"` controls identity claims in the attestation |
+| POST | `/api/zk/keys` | Register the user's first passkey or add another named passkey; optional `identityDisclosure: "subject" | "profile"` controls identity claims in the attestation |
 | POST | `/api/zk/keys/assertion-challenge` | Issue a challenge bound to a `credentialId` |
 | POST | `/api/zk/keys/assertion` | Verify `{credentialId, challenge, authenticatorData, clientDataJSON, signature}`; unlocks `encryptedSk` |
-| GET | `/api/zk/keys/me` | Return the caller's keys and identity attestation (wrapped `encryptedSk` only after a fresh assertion) |
+| GET | `/api/zk/keys/me` | Return the caller's named passkeys, public key, and identity attestation (a passkey's wrapped `encryptedSk` only after a fresh assertion) |
 | DELETE | `/api/zk/keys/me` | Remove the caller's keys; encrypted chat records remain inaccessible |
+| PATCH | `/api/zk/keys/me/credentials/{credentialId}` | Rename one of the caller's passkeys |
+| DELETE | `/api/zk/keys/me/credentials/{credentialId}` | Remove one passkey, leaving the user's key and other passkeys in place |
 | GET | `/api/zk/keys/attestation-jwks` | Return the proxy's public verification key |
 | GET | `/api/zk/keys/{userId}/public-key` | Another user's key and identity attestation, for sharing |
 | POST | `/api/zk/keys/rotate` | Re-wrap `SK_user` under a new passkey/credential; may also update identity disclosure |
@@ -47,6 +49,29 @@ are base64url-encoded.
 | POST | `/api/zk/chats/{id}/share` | Add a wrapped `K_chat` for a recipient |
 | POST | `/api/zk/chats/{id}/revoke` | Remove a recipient's envelope (owner only) |
 | DELETE | `/api/zk/chats/{id}` | Delete a chat (owner only) |
+
+Register a passkey with a user-provided `credentialName` (up to 80 printable
+characters). For a second or later passkey, send the same account
+`publicKeyAlgorithm` and `publicKey` as the first registration, plus that
+credential's WebAuthn public key and a copy of `SK_user` wrapped under that
+passkey's PRF-derived key. The server stores one wrapped copy per passkey. A
+registration without `credentialName` is accepted for older clients and is
+named `Passkey`. Existing passkeys can be renamed with `PATCH` to the
+credential resource using `{ "credentialName": "..." }`.
+
+`GET /api/zk/keys/me` returns a `credentials` array containing each
+`credentialId`, `name`, and `createdAt`. The legacy top-level `credentialId`
+and `credentialName` fields identify the passkey whose `encryptedSk` is
+returned after assertion, or the first passkey when no recent assertion exists.
+Assertion challenges are bound to the requested `credentialId`. Only the
+wrapped key for the most recently asserted credential is released, for the
+existing 15-minute window. The final passkey cannot be removed individually;
+use `DELETE /api/zk/keys/me` to remove the whole key account.
+
+`POST /api/zk/keys/rotate` remains a replacement operation: it installs one
+credential wrapper for the rotated user key and removes the account's other
+passkeys. Use `POST /api/zk/keys` to add a passkey without rotating the user's
+public key.
 
 `publicKeyAlgorithm` is `ECDH-P256` for new clients or `RSA-OAEP-SHA256` for
 legacy clients. Clients should send it when registering or rotating keys; an
@@ -206,7 +231,7 @@ cannot constrain a backend operator who can change the API or its database.
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `WEBAUTHN_RP_ID` | host of `ISSUER` | Relying-party id accepted in assertions |
+| `WEBAUTHN_RP_ID` | hostname of the allowlisted request origin | Optional fixed relying-party id accepted in assertions; by default the server uses the hostname of the allowlisted frontend origin |
 | `WEBAUTHN_ORIGINS` | `CORS_ORIGINS` | JSON array or comma-separated list of accepted origins |
 | `ZK_WRITE_RATE_LIMIT` | `120` | Write requests per user per minute for `/api/zk` |
 
