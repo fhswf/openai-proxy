@@ -34,6 +34,9 @@ The following environment variables are used to configure the proxy server:
 | WEBAUTHN_RP_ID      | host of `ISSUER`           | Relying-party id accepted when verifying WebAuthn assertions (zero-knowledge chat vault) |
 | WEBAUTHN_ORIGINS    | `CORS_ORIGINS`             | Comma-separated list (or JSON array) of origins accepted in WebAuthn assertions |
 | ZK_WRITE_RATE_LIMIT | `120`                      | Write requests per user per minute for the `/api/zk` endpoints |
+| ZK_ATTESTATION_PRIVATE_KEY | unset | RSA private key used to sign zero-knowledge identity-to-key attestations; store as a deployment secret |
+| ZK_ATTESTATION_ISSUER | unset | Stable public issuer identifier for proxy-signed key attestations |
+| ZK_ATTESTATION_KEY_ID | `zk-attestation-1` | `kid` published in the attestation JWKS; use a new value when rotating the signing key |
 | RETURN_URL_ORIGINS  | value of `CORS_ORIGINS`    | Comma-separated frontend origins a user may be redirected to after login |
 | LOGIN_STATE_SECRET  | value of `CLIENT_SECRET`   | Secret used to sign the OAuth `state` that carries the post-login return URL |
 | PORT                | `3000`                     | Port the proxy listens on                                |

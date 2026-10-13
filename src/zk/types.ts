@@ -1,12 +1,26 @@
 export type UserKeyAlgorithm = 'RSA-OAEP-SHA256' | 'ECDH-P256';
 export type EnvelopeAlgorithm = 'RSA-OAEP-SHA256' | 'ECDH-P256-HKDF-SHA256-AES-256-GCM';
 
+/** Selected identity-provider claims copied from the verified JWT. */
+export interface UserIdentityClaims {
+    issuer: string;
+    subject: string;
+    name?: string;
+    email?: string;
+    emailVerified?: boolean;
+    preferredUsername?: string;
+    /** Time this identity claim snapshot was copied from the authenticated JWT. */
+    observedAt?: string;
+}
+
 export interface UserKeysRecord {
     userId: string;
     credentialId: string;
     credentialPublicKey: string;
     publicKeyAlgorithm: UserKeyAlgorithm;
     publicKey: string;
+    /** Identity claims from the authenticated registration or rotation. */
+    identity?: UserIdentityClaims | null;
     encryptedSk: string;
     encryptedSkIv: string;
     /** Timestamp of the last successful WebAuthn assertion for this user. */

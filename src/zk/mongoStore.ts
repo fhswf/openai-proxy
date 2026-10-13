@@ -14,6 +14,7 @@ interface UserKeysDoc {
     credential_public_key: string;
     public_key_algorithm?: 'RSA-OAEP-SHA256' | 'ECDH-P256';
     public_key: string;
+    identity_claims?: UserKeysRecord['identity'];
     encrypted_sk: string;
     encrypted_sk_iv: string;
     asserted_at: Date | null;
@@ -102,6 +103,7 @@ export class MongoZkStore implements ZkStore {
             // Documents created before algorithm metadata used RSA-OAEP.
             publicKeyAlgorithm: doc.public_key_algorithm ?? 'RSA-OAEP-SHA256',
             publicKey: doc.public_key,
+            identity: doc.identity_claims ?? null,
             encryptedSk: doc.encrypted_sk,
             encryptedSkIv: doc.encrypted_sk_iv,
             assertedAt: doc.asserted_at ?? null,
@@ -132,6 +134,7 @@ export class MongoZkStore implements ZkStore {
                     credential_public_key: record.credentialPublicKey,
                     public_key_algorithm: record.publicKeyAlgorithm,
                     public_key: record.publicKey,
+                    identity_claims: record.identity ?? null,
                     encrypted_sk: record.encryptedSk,
                     encrypted_sk_iv: record.encryptedSkIv,
                     asserted_at: record.assertedAt,

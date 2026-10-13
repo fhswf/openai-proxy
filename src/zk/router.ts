@@ -1,6 +1,7 @@
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import { byteLength, randomBytes, toBase64Url } from './base64.ts';
+import { identityClaimsFromRequest, KeyAttestor } from './attestation.ts';
 import type { EnvelopeAlgorithm, UserKeyAlgorithm, ZkStore } from './types.ts';
 import { verifyAssertion } from './webauthn.ts';
 import type { WebAuthnConfig } from './webauthn.ts';
@@ -99,6 +100,12 @@ function requireUserKeyAlgorithm(
     throw new ZkError(400, 'invalid_payload', 'publicKeyAlgorithm is unsupported');
 }
 
+function requireIdentityProfileDisclosure(value: unknown): boolean {
+    if (value == null || value === 'subject') return false;
+    if (value === 'profile') return true;
+    throw new ZkError(400, 'invalid_payload', 'identityDisclosure must be subject or profile');
+}
+
 function requireEnvelopeAlgorithm(value: unknown): EnvelopeAlgorithm {
     // Omitted algorithms identify envelopes written before algorithm metadata
     // was added; those used direct RSA-OAEP wrapping.
@@ -163,6 +170,10 @@ function requireId(value: unknown, field: string): string {
 export interface ZkRouterOptions {
     store: ZkStore;
     webauthn: WebAuthnConfig;
+    /** Optional proxy signing key for identity-to-public-key attestations. */
+    attestor?: KeyAttestor | null;
+    /** Configured OIDC issuer used for existing key records without saved claims. */
+    identityIssuer?: string;
     /** Rate limit for write endpoints, per authenticated user. */
     writeRateLimit?: { windowMs: number; max: number };
 }
@@ -221,6 +232,7 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
     router.post('/keys', writeLimiter, route(async (req, res) => {
         const userId = getUserId(req);
         const body = req.body ?? {};
+        const includeIdentityProfile = requireIdentityProfileDisclosure(body.identityDisclosure);
 
         const credentialId = requireBase64(body.credentialId, 'credentialId', { min: 1, max: MAX_CREDENTIAL_ID_BYTES });
         const credentialPublicKey = requireBase64(body.credentialPublicKey, 'credentialPublicKey', { min: 1, max: MAX_PUBLIC_KEY_BYTES });
@@ -241,12 +253,15 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
         }
 
         const existing = await store.getUserKeysByUserId(userId);
-        await store.upsertUserKeys({
+        const record = {
             userId,
             credentialId,
             credentialPublicKey,
             publicKeyAlgorithm,
             publicKey,
+            identity: options.attestor
+                ? identityClaimsFromRequest(req['user'], userId, options.identityIssuer, includeIdentityProfile)
+                : null,
             encryptedSk,
             encryptedSkIv,
             // Registration alone never unlocks encryptedSk; a WebAuthn
@@ -257,7 +272,8 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
                     : null,
             createdAt: existing?.createdAt ?? now(),
             updatedAt: now(),
-        });
+        };
+        await store.upsertUserKeys(record);
 
         res.status(201).json({ userId, createdAt: (existing?.createdAt ?? now()).toISOString() });
     }));
@@ -334,6 +350,7 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
             credentialId: record.credentialId,
             publicKeyAlgorithm: record.publicKeyAlgorithm,
             publicKey: record.publicKey,
+            identityAttestation: options.attestor?.issue(record, options.identityIssuer) ?? null,
             ...(unlocked ? {
                 encryptedSk: record.encryptedSk,
                 encryptedSkIv: record.encryptedSkIv,
@@ -347,6 +364,15 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
         res.status(204).end();
     }));
 
+    router.get('/keys/attestation-jwks', route(async (_req, res) => {
+        if (!options.attestor) {
+            throw new ZkError(503, 'attestation_unavailable', 'Key identity attestations are not configured');
+        }
+
+        res.set('Cache-Control', 'public, max-age=300');
+        res.json(options.attestor.jwks());
+    }));
+
     router.get('/keys/:userId/public-key', route(async (req, res) => {
         const userId = requireId(req.params.userId, 'userId');
         const record = await store.getUserKeysByUserId(userId);
@@ -358,6 +384,7 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
             userId: record.userId,
             publicKeyAlgorithm: record.publicKeyAlgorithm,
             publicKey: record.publicKey,
+            identityAttestation: options.attestor?.issue(record, options.identityIssuer) ?? null,
         });
     }));
 
@@ -560,6 +587,7 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
     router.post('/keys/rotate', writeLimiter, route(async (req, res) => {
         const userId = getUserId(req);
         const body = req.body ?? {};
+        const includeIdentityProfile = requireIdentityProfileDisclosure(body.identityDisclosure);
 
         const credentialId = requireBase64(body.credentialId, 'credentialId', { min: 1, max: MAX_CREDENTIAL_ID_BYTES });
         const credentialPublicKey = requireBase64(body.credentialPublicKey, 'credentialPublicKey', { min: 1, max: MAX_PUBLIC_KEY_BYTES });
@@ -590,6 +618,9 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
             credentialPublicKey,
             publicKeyAlgorithm,
             publicKey,
+            identity: options.attestor
+                ? identityClaimsFromRequest(req['user'], userId, options.identityIssuer, includeIdentityProfile)
+                : null,
             encryptedSk,
             encryptedSkIv,
             assertedAt: null,

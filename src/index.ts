@@ -21,6 +21,7 @@ import { mongo_connect, logRequest, countRequests, checkConnection, getDb } from
 import { createZkRouter } from './zk/router.ts';
 import { MemoryZkStore } from './zk/memoryStore.ts';
 import { MongoZkStore } from './zk/mongoStore.ts';
+import { KeyAttestor } from './zk/attestation.ts';
 import type { ZkStore } from './zk/types.ts';
 
 const { combine, timestamp, json, errors } = format;
@@ -343,7 +344,10 @@ const verifyTokenCandidates = (tokens, callback) => {
             return;
         }
 
-        jwt.verify(token, getSigningKey, { algorithms: ['RS256'] }, (err, user) => {
+        jwt.verify(token, getSigningKey, {
+            algorithms: ['RS256'],
+            ...(ISSUER ? { issuer: ISSUER } : {}),
+        }, (err, user) => {
             if (!err) {
                 callback(null, user, token);
                 return;
@@ -606,7 +610,9 @@ const checkAuth = (req, res, next) => {
         req['user'] = {
             name: user['name'],
             email: user['email'],
+            email_verified: user['email_verified'],
             sub: user.sub,
+            iss: user['iss'],
             preferred_username: user['preferred_username'],
             affiliations: user['affiliations']
         }
@@ -667,8 +673,17 @@ const resolveRpId = (): string => {
 };
 
 const zkStore = createZkStore();
+const zkAttestor = KeyAttestor.fromEnvironment();
+if (zkAttestor) {
+    logger.info('zero-knowledge key identity attestations enabled');
+}
+else {
+    logger.warn('zero-knowledge key identity attestations disabled; configure ZK_ATTESTATION_PRIVATE_KEY and ZK_ATTESTATION_ISSUER');
+}
 const zkRouter = createZkRouter({
     store: zkStore,
+    attestor: zkAttestor,
+    identityIssuer: ISSUER,
     webauthn: {
         rpId: resolveRpId(),
         origins: WEBAUTHN_ORIGINS,
