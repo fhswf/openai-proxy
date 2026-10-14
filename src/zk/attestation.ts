@@ -77,7 +77,7 @@ export class KeyAttestor {
             subject: identity.subject,
             audience: ATTESTATION_AUDIENCE,
             expiresIn: ATTESTATION_TTL_SECONDS,
-            header: { typ: 'zk-key-attestation+jwt' },
+            header: { alg: 'RS256', typ: 'zk-key-attestation+jwt' },
         });
     }
 }
