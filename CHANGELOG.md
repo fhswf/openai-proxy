@@ -33,6 +33,13 @@
 
 * add functions to handle forwarded headers for callback URL construction ([2b32afc](https://github.com/fhswf/openai-proxy/commit/2b32afc6e07757f4aeeda31df81fb2eabf72659d))
 
+## [0.29.0](https://github.com/fhswf/openai-proxy/compare/openai-proxy-v0.28.0...openai-proxy-v0.29.0) (2026-10-14)
+
+
+### Features
+
+* enhance zero-knowledge credential management with passkey support and related API updates ([0a48c41](https://github.com/fhswf/openai-proxy/commit/0a48c417e56a71dd6413c262f667cc0fb0aa298d))
+
 ## [0.28.0](https://github.com/fhswf/openai-proxy/compare/openai-proxy-v0.27.0...openai-proxy-v0.28.0) (2026-10-13)
 
 
