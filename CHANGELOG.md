@@ -33,6 +33,15 @@
 
 * add functions to handle forwarded headers for callback URL construction ([2b32afc](https://github.com/fhswf/openai-proxy/commit/2b32afc6e07757f4aeeda31df81fb2eabf72659d))
 
+## [0.28.0](https://github.com/fhswf/openai-proxy/compare/openai-proxy-v0.27.0...openai-proxy-v0.28.0) (2026-10-13)
+
+
+### Features
+
+* add CITATION file and enhance zero-knowledge documentation with threat model and limitations ([e97c0fd](https://github.com/fhswf/openai-proxy/commit/e97c0fd8b5692a7db6b3d3f28008ac9344d69cbe))
+* add zero-knowledge vault comparison with KI:connect.nrw ([f517153](https://github.com/fhswf/openai-proxy/commit/f51715392cda53d2c98ec464c575e617a4799289))
+* implement zero-knowledge identity attestations and update related documentation ([dad91c7](https://github.com/fhswf/openai-proxy/commit/dad91c740a2689fd7ed209a279ed9766c6de81b9))
+
 ## [0.27.0](https://github.com/fhswf/openai-proxy/compare/openai-proxy-v0.26.0...openai-proxy-v0.27.0) (2026-10-12)
 
 
