@@ -1,7 +1,9 @@
+import { Readable } from 'node:stream';
 import type {
     ChatEnvelopeRecord,
     ChatRecord,
     ChatSummary,
+    ZkAttachmentDownload,
     PendingChallengeRecord,
     UserCredentialRecord,
     UserKeysRecord,
@@ -21,6 +23,7 @@ export class MemoryZkStore implements ZkStore {
     private challenges = new Map<string, PendingChallengeRecord>();
     private chats = new Map<string, ChatRecord>();
     private envelopes = new Map<string, ChatEnvelopeRecord>();
+    private attachments = new Map<string, Buffer>();
 
     async init(): Promise<void> {
         // Nothing to initialise for the in-memory store.
@@ -217,6 +220,39 @@ export class MemoryZkStore implements ZkStore {
             if (envelope.chat_id === id) {
                 this.envelopes.delete(key);
             }
+        }
+        await this.deleteAttachmentsForChat(id);
+    }
+
+    private attachmentKey(chatId: string, attachmentId: string) {
+        return `${chatId}\u0000${attachmentId}`;
+    }
+
+    async putAttachment(chatId: string, attachmentId: string, source: Readable): Promise<void> {
+        const chunks: Buffer[] = [];
+        for await (const chunk of source) {
+            chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        }
+        this.attachments.set(this.attachmentKey(chatId, attachmentId), Buffer.concat(chunks));
+    }
+
+    async getAttachment(chatId: string, attachmentId: string): Promise<ZkAttachmentDownload | null> {
+        const data = this.attachments.get(this.attachmentKey(chatId, attachmentId));
+        return data ? { stream: Readable.from([data]), size: data.length } : null;
+    }
+
+    async hasAttachment(chatId: string, attachmentId: string): Promise<boolean> {
+        return this.attachments.has(this.attachmentKey(chatId, attachmentId));
+    }
+
+    async deleteAttachment(chatId: string, attachmentId: string): Promise<void> {
+        this.attachments.delete(this.attachmentKey(chatId, attachmentId));
+    }
+
+    async deleteAttachmentsForChat(chatId: string): Promise<void> {
+        const prefix = `${chatId}\u0000`;
+        for (const key of this.attachments.keys()) {
+            if (key.startsWith(prefix)) this.attachments.delete(key);
         }
     }
 

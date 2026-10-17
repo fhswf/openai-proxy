@@ -1,4 +1,5 @@
-import type { Collection, Db } from 'mongodb';
+import { GridFSBucket, type Collection, type Db } from 'mongodb';
+import type { Readable } from 'node:stream';
 import type {
     ChatEnvelopeRecord,
     ChatRecord,
@@ -6,6 +7,7 @@ import type {
     PendingChallengeRecord,
     UserCredentialRecord,
     UserKeysRecord,
+    ZkAttachmentDownload,
     ZkStore,
 } from './types.ts';
 
@@ -97,12 +99,21 @@ export class MongoZkStore implements ZkStore {
         return this.getDb().collection<ChatKeyDoc>('chat_keys');
     }
 
+    private attachments(): GridFSBucket {
+        return new GridFSBucket(this.getDb(), { bucketName: 'zk_attachments' });
+    }
+
     async init(): Promise<void> {
         await this.users().createIndex({ credential_id: 1 }, { unique: true });
         await this.users().createIndex({ 'credentials.credential_id': 1 }, { unique: true });
         await this.chatsCollection().createIndex({ owner_id: 1, updated_at: -1 });
         await this.chatKeys().createIndex({ recipient_id: 1 });
         await this.chatKeys().createIndex({ chat_id: 1, recipient_id: 1 }, { unique: true });
+        await this.getDb().collection('zk_attachments.files').createIndex({
+            'metadata.chatId': 1,
+            'metadata.attachmentId': 1,
+            uploadDate: -1,
+        });
         // Expire abandoned challenges so they never linger as replay material.
         await this.challenges().createIndex({ expires_at: 1 }, { expireAfterSeconds: 0 });
 
@@ -363,6 +374,81 @@ export class MongoZkStore implements ZkStore {
     async deleteChat(id: string): Promise<void> {
         await this.chatsCollection().deleteOne({ _id: id });
         await this.chatKeys().deleteMany({ chat_id: id });
+        await this.deleteAttachmentsForChat(id);
+    }
+
+    async putAttachment(chatId: string, attachmentId: string, source: Readable): Promise<void> {
+        const bucket = this.attachments();
+        const upload = bucket.openUploadStream(`${chatId}/${attachmentId}`, {
+            metadata: { chatId, attachmentId },
+        });
+        await new Promise<void>((resolve, reject) => {
+            let settled = false;
+            const fail = (error: Error) => {
+                if (settled) return;
+                settled = true;
+                source.off('error', fail);
+                upload.off('error', fail);
+                source.unpipe(upload);
+                void upload.abort().then(() => reject(error), () => reject(error));
+            };
+            const finish = () => {
+                if (settled) return;
+                settled = true;
+                source.off('error', fail);
+                upload.off('error', fail);
+                resolve();
+            };
+            source.once('error', fail);
+            upload.once('error', fail);
+            upload.once('finish', finish);
+            source.pipe(upload);
+        });
+
+        const previous = await bucket.find({
+            'metadata.chatId': chatId,
+            'metadata.attachmentId': attachmentId,
+            _id: { $ne: upload.id },
+        }).toArray();
+        await Promise.all(previous.map((file) => bucket.delete(file._id)));
+    }
+
+    async getAttachment(chatId: string, attachmentId: string): Promise<ZkAttachmentDownload | null> {
+        const bucket = this.attachments();
+        const files = await bucket.find({
+            'metadata.chatId': chatId,
+            'metadata.attachmentId': attachmentId,
+        }).sort({ uploadDate: -1 }).limit(1).toArray();
+        const file = files[0];
+        if (!file) return null;
+        return {
+            stream: bucket.openDownloadStream(file._id),
+            size: file.length,
+        };
+    }
+
+    async hasAttachment(chatId: string, attachmentId: string): Promise<boolean> {
+        const bucket = this.attachments();
+        const files = await bucket.find({
+            'metadata.chatId': chatId,
+            'metadata.attachmentId': attachmentId,
+        }).limit(1).toArray();
+        return files.length > 0;
+    }
+
+    async deleteAttachment(chatId: string, attachmentId: string): Promise<void> {
+        const bucket = this.attachments();
+        const files = await bucket.find({
+            'metadata.chatId': chatId,
+            'metadata.attachmentId': attachmentId,
+        }).toArray();
+        await Promise.all(files.map((file) => bucket.delete(file._id)));
+    }
+
+    async deleteAttachmentsForChat(chatId: string): Promise<void> {
+        const bucket = this.attachments();
+        const files = await bucket.find({ 'metadata.chatId': chatId }).toArray();
+        await Promise.all(files.map((file) => bucket.delete(file._id)));
     }
 
     async listEnvelopes(chatId: string): Promise<ChatEnvelopeRecord[]> {

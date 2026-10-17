@@ -10,7 +10,8 @@ under `/api/zk` and use the same OIDC bearer token / session cookie as the rest
 of the proxy. When attestation signing is enabled, registration can also store
 selected OIDC profile claims (`name`, `email`, verification status, and
 username) with the key if the user opts into profile disclosure. Binary values
-are base64url-encoded.
+are base64url-encoded. Attachment bodies use `application/octet-stream` and
+are streamed through GridFS.
 
 ## Key hierarchy
 
@@ -49,6 +50,15 @@ are base64url-encoded.
 | POST | `/api/zk/chats/{id}/share` | Add a wrapped `K_chat` for a recipient |
 | POST | `/api/zk/chats/{id}/revoke` | Remove a recipient's envelope (owner only) |
 | DELETE | `/api/zk/chats/{id}` | Delete a chat (owner only) |
+| HEAD | `/api/zk/chats/{id}/attachments/{attachmentId}` | Check whether an encrypted attachment exists |
+| GET | `/api/zk/chats/{id}/attachments/{attachmentId}` | Stream an encrypted attachment to any chat recipient |
+| PUT | `/api/zk/chats/{id}/attachments/{attachmentId}` | Stream an encrypted attachment upload (owner only, 100 MiB maximum) |
+| DELETE | `/api/zk/chats/{id}/attachments/{attachmentId}` | Delete one attachment (owner only) |
+
+Attachment requests use `application/octet-stream`. The server streams the
+opaque IV-plus-ciphertext body to and from MongoDB GridFS; it does not receive
+the filename or plaintext. A chat envelope is required to download an
+attachment. Upload and deletion are restricted to the chat owner.
 
 Register a passkey with a user-provided `credentialName` (up to 80 printable
 characters). For a second or later passkey, send the same account
@@ -223,6 +233,8 @@ cannot constrain a backend operator who can change the API or its database.
   configured.
 - The server uses `chat_keys` entries solely for authorization, never for
   decryption.
+- Attachment bodies remain AES-GCM ciphertext in the `zk_attachments` GridFS
+  bucket and are streamed without base64 expansion.
 - `wrappedKey` (1024 bytes, including legacy RSA-OAEP-4096), `encryptedSk`
   (16 KiB), `iv` (16 bytes) and ciphertext (5 MB) are bounded; oversized
   values yield `413 payload_too_large`.
