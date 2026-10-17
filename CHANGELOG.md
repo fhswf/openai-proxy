@@ -33,6 +33,14 @@
 
 * add functions to handle forwarded headers for callback URL construction ([2b32afc](https://github.com/fhswf/openai-proxy/commit/2b32afc6e07757f4aeeda31df81fb2eabf72659d))
 
+## [0.30.0](https://github.com/fhswf/openai-proxy/compare/openai-proxy-v0.29.0...openai-proxy-v0.30.0) (2026-10-17)
+
+
+### Features
+
+* add attachment existence check and related methods in memory and mongo stores ([7a11e4a](https://github.com/fhswf/openai-proxy/commit/7a11e4a595fe0027cf0acbbe0e5ea3492f5c3e9c))
+* add attachment handling for zero-knowledge chats with GridFS support ([f81f9fc](https://github.com/fhswf/openai-proxy/commit/f81f9fc81a41d4c74bf81c18b58d349583cc1fb3))
+
 ## [0.29.0](https://github.com/fhswf/openai-proxy/compare/openai-proxy-v0.28.0...openai-proxy-v0.29.0) (2026-10-14)
 
 
