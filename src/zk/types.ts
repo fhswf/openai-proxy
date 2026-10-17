@@ -1,3 +1,5 @@
+import type { Readable } from 'node:stream';
+
 export type UserKeyAlgorithm = 'RSA-OAEP-SHA256' | 'ECDH-P256';
 export type EnvelopeAlgorithm = 'RSA-OAEP-SHA256' | 'ECDH-P256-HKDF-SHA256-AES-256-GCM';
 
@@ -80,6 +82,11 @@ export interface ChatSummary {
     rev: number;
 }
 
+export interface ZkAttachmentDownload {
+    stream: Readable;
+    size: number;
+}
+
 /**
  * Persistence boundary for the zero-knowledge vault. The server only ever sees
  * ciphertext and public keys; implementations must never inspect or interpret
@@ -105,9 +112,15 @@ export interface ZkStore {
     upsertChat(record: ChatRecord, selfEnvelope: ChatEnvelopeRecord, baseRev?: number | null): Promise<'created' | 'updated' | 'conflict'>;
     deleteChat(id: string): Promise<void>;
 
+    putAttachment(chatId: string, attachmentId: string, source: Readable): Promise<void>;
+    getAttachment(chatId: string, attachmentId: string): Promise<ZkAttachmentDownload | null>;
+    deleteAttachment(chatId: string, attachmentId: string): Promise<void>;
+    deleteAttachmentsForChat(chatId: string): Promise<void>;
+
     listEnvelopes(chatId: string): Promise<ChatEnvelopeRecord[]>;
     getEnvelope(chatId: string, recipientId: string): Promise<ChatEnvelopeRecord | null>;
     upsertEnvelope(record: ChatEnvelopeRecord): Promise<void>;
     deleteEnvelope(chatId: string, recipientId: string): Promise<void>;
     hasEnvelope(chatId: string, recipientId: string): Promise<boolean>;
 }
+

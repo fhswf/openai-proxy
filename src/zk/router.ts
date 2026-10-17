@@ -1,5 +1,7 @@
 import express from 'express';
 import rateLimit from 'express-rate-limit';
+import { Transform } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { byteLength, randomBytes, toBase64Url } from './base64.ts';
 import { identityClaimsFromRequest, KeyAttestor } from './attestation.ts';
 import type { EnvelopeAlgorithm, UserKeyAlgorithm, ZkStore } from './types.ts';
@@ -11,6 +13,7 @@ const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 const ASSERTION_TTL_MS = 15 * 60 * 1000;
 
 const MAX_CIPHERTEXT_BYTES = 5 * 1024 * 1024;
+const MAX_ATTACHMENT_BYTES = 100 * 1024 * 1024;
 const MAX_METADATA_BYTES = 64 * 1024;
 // Retain envelopes from the previous RSA-OAEP-4096 client (512 bytes).
 const MAX_WRAPPED_KEY_BYTES = 1024;
@@ -501,6 +504,71 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
                 wrappedKeyIv: envelope.wrapped_key_iv,
             })),
         });
+    }));
+
+    router.get('/chats/:id/attachments/:attachmentId', route(async (req, res) => {
+        const userId = getUserId(req);
+        const id = requireId(req.params.id, 'id');
+        const attachmentId = requireId(req.params.attachmentId, 'attachmentId');
+        if (!(await store.hasEnvelope(id, userId))) {
+            throw new ZkError(403, 'forbidden', 'No access to this chat');
+        }
+
+        const attachment = await store.getAttachment(id, attachmentId);
+        if (!attachment) {
+            throw new ZkError(404, 'not_found', 'Attachment not found');
+        }
+
+        res.status(200)
+            .type('application/octet-stream')
+            .set('Content-Length', String(attachment.size));
+        await pipeline(attachment.stream, res);
+    }));
+
+    router.put('/chats/:id/attachments/:attachmentId', writeLimiter, route(async (req, res) => {
+        const userId = getUserId(req);
+        const id = requireId(req.params.id, 'id');
+        const attachmentId = requireId(req.params.attachmentId, 'attachmentId');
+        const chat = await store.getChat(id);
+        if (!chat) {
+            throw new ZkError(404, 'not_found', 'Chat not found');
+        }
+        if (chat.ownerId !== userId) {
+            throw new ZkError(403, 'forbidden', 'Only the owner can upload attachments');
+        }
+        if (!req.is('application/octet-stream')) {
+            throw new ZkError(415, 'invalid_content_type', 'Attachment data must be application/octet-stream');
+        }
+
+        let bytes = 0;
+        const limit = new Transform({
+            transform(chunk: Buffer, _encoding, callback) {
+                bytes += chunk.length;
+                if (bytes > MAX_ATTACHMENT_BYTES) {
+                    callback(new ZkError(413, 'payload_too_large', 'Attachment is too large'));
+                    return;
+                }
+                callback(null, chunk);
+            },
+        });
+        await store.putAttachment(id, attachmentId, req.pipe(limit));
+        res.status(204).end();
+    }));
+
+    router.delete('/chats/:id/attachments/:attachmentId', writeLimiter, route(async (req, res) => {
+        const userId = getUserId(req);
+        const id = requireId(req.params.id, 'id');
+        const attachmentId = requireId(req.params.attachmentId, 'attachmentId');
+        const chat = await store.getChat(id);
+        if (!chat) {
+            throw new ZkError(404, 'not_found', 'Chat not found');
+        }
+        if (chat.ownerId !== userId) {
+            throw new ZkError(403, 'forbidden', 'Only the owner can delete attachments');
+        }
+
+        await store.deleteAttachment(id, attachmentId);
+        res.status(204).end();
     }));
 
     router.put('/chats/:id', writeLimiter, route(async (req, res) => {
