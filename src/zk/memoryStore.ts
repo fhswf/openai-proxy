@@ -241,6 +241,10 @@ export class MemoryZkStore implements ZkStore {
         return data ? { stream: Readable.from([data]), size: data.length } : null;
     }
 
+    async hasAttachment(chatId: string, attachmentId: string): Promise<boolean> {
+        return this.attachments.has(this.attachmentKey(chatId, attachmentId));
+    }
+
     async deleteAttachment(chatId: string, attachmentId: string): Promise<void> {
         this.attachments.delete(this.attachmentKey(chatId, attachmentId));
     }

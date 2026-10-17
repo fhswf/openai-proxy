@@ -525,6 +525,19 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
         await pipeline(attachment.stream, res);
     }));
 
+    router.head('/chats/:id/attachments/:attachmentId', route(async (req, res) => {
+        const userId = getUserId(req);
+        const id = requireId(req.params.id, 'id');
+        const attachmentId = requireId(req.params.attachmentId, 'attachmentId');
+        if (!(await store.hasEnvelope(id, userId))) {
+            throw new ZkError(403, 'forbidden', 'No access to this chat');
+        }
+        if (!(await store.hasAttachment(id, attachmentId))) {
+            throw new ZkError(404, 'not_found', 'Attachment not found');
+        }
+        res.status(204).end();
+    }));
+
     router.put('/chats/:id/attachments/:attachmentId', writeLimiter, route(async (req, res) => {
         const userId = getUserId(req);
         const id = requireId(req.params.id, 'id');
@@ -549,6 +562,13 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
                     return;
                 }
                 callback(null, chunk);
+            },
+            flush(callback) {
+                if (bytes < 28) {
+                    callback(new ZkError(400, 'invalid_payload', 'Encrypted attachment is incomplete'));
+                    return;
+                }
+                callback();
             },
         });
         await store.putAttachment(id, attachmentId, req.pipe(limit));

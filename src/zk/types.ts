@@ -114,6 +114,7 @@ export interface ZkStore {
 
     putAttachment(chatId: string, attachmentId: string, source: Readable): Promise<void>;
     getAttachment(chatId: string, attachmentId: string): Promise<ZkAttachmentDownload | null>;
+    hasAttachment(chatId: string, attachmentId: string): Promise<boolean>;
     deleteAttachment(chatId: string, attachmentId: string): Promise<void>;
     deleteAttachmentsForChat(chatId: string): Promise<void>;
 

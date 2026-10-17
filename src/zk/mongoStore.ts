@@ -109,6 +109,11 @@ export class MongoZkStore implements ZkStore {
         await this.chatsCollection().createIndex({ owner_id: 1, updated_at: -1 });
         await this.chatKeys().createIndex({ recipient_id: 1 });
         await this.chatKeys().createIndex({ chat_id: 1, recipient_id: 1 }, { unique: true });
+        await this.getDb().collection('zk_attachments.files').createIndex({
+            'metadata.chatId': 1,
+            'metadata.attachmentId': 1,
+            uploadDate: -1,
+        });
         // Expire abandoned challenges so they never linger as replay material.
         await this.challenges().createIndex({ expires_at: 1 }, { expireAfterSeconds: 0 });
 
@@ -420,6 +425,15 @@ export class MongoZkStore implements ZkStore {
             stream: bucket.openDownloadStream(file._id),
             size: file.length,
         };
+    }
+
+    async hasAttachment(chatId: string, attachmentId: string): Promise<boolean> {
+        const bucket = this.attachments();
+        const files = await bucket.find({
+            'metadata.chatId': chatId,
+            'metadata.attachmentId': attachmentId,
+        }).limit(1).toArray();
+        return files.length > 0;
     }
 
     async deleteAttachment(chatId: string, attachmentId: string): Promise<void> {

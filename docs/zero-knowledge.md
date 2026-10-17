@@ -50,6 +50,7 @@ are streamed through GridFS.
 | POST | `/api/zk/chats/{id}/share` | Add a wrapped `K_chat` for a recipient |
 | POST | `/api/zk/chats/{id}/revoke` | Remove a recipient's envelope (owner only) |
 | DELETE | `/api/zk/chats/{id}` | Delete a chat (owner only) |
+| HEAD | `/api/zk/chats/{id}/attachments/{attachmentId}` | Check whether an encrypted attachment exists |
 | GET | `/api/zk/chats/{id}/attachments/{attachmentId}` | Stream an encrypted attachment to any chat recipient |
 | PUT | `/api/zk/chats/{id}/attachments/{attachmentId}` | Stream an encrypted attachment upload (owner only, 100 MiB maximum) |
 | DELETE | `/api/zk/chats/{id}/attachments/{attachmentId}` | Delete one attachment (owner only) |
