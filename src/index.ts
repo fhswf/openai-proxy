@@ -5,6 +5,7 @@ import { createLogger, format, transports } from 'winston';
 import express from 'express';
 import proxy from 'express-http-proxy';
 import rateLimit from 'express-rate-limit';
+import swaggerUi from 'swagger-ui-express';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import jwt from 'jsonwebtoken';
@@ -23,6 +24,7 @@ import { MemoryZkStore } from './zk/memoryStore.ts';
 import { MongoZkStore } from './zk/mongoStore.ts';
 import { KeyAttestor } from './zk/attestation.ts';
 import type { ZkStore } from './zk/types.ts';
+import { createOpenApiDocument } from './openapi.ts';
 
 const { combine, timestamp, json, errors } = format;
 const logger = createLogger({
@@ -78,6 +80,7 @@ export const REDIRECT_URIS = parseList(
 );
 export const ISSUER = process.env.ISSUER;
 const PREFIX = process.env.API_PREFIX || '/api';
+const openApiDocument = createOpenApiDocument(PREFIX);
 const API_URL = process.env.API_URL;
 const API_KEY = process.env.API_KEY;
 const BASE_URL = process.env.BASE_URL;
@@ -133,6 +136,15 @@ app.use(cors({
 
         callback(null, CORS_ORIGINS.includes(origin));
     },
+}));
+
+// Documentation is public so clients can discover the API before logging in.
+// Keep it ahead of the authentication middleware mounted below.
+app.get('/docs', (req, res) => res.redirect(308, 'docs/'));
+app.get('/docs/openapi.json', (req, res) => res.json(openApiDocument));
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(null, {
+    swaggerOptions: { url: 'openapi.json' },
+    customSiteTitle: 'OpenAI Proxy API',
 }));
 
 let client;
