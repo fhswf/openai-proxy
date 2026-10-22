@@ -2,7 +2,7 @@ import express from 'express';
 import rateLimit from 'express-rate-limit';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import { byteLength, randomBytes, toBase64Url } from './base64.ts';
+import { byteLength, randomBytes, sha256, toBase64Url } from './base64.ts';
 import { identityClaimsFromRequest, KeyAttestor } from './attestation.ts';
 import type { EnvelopeAlgorithm, UserKeyAlgorithm, ZkStore } from './types.ts';
 import { verifyAssertion } from './webauthn.ts';
@@ -24,6 +24,7 @@ const MAX_PUBLIC_KEY_BYTES = 2048;
 const MAX_ENCRYPTED_SK_BYTES = 16 * 1024;
 const MAX_CREDENTIAL_NAME_LENGTH = 80;
 const MAX_ID_LENGTH = 128;
+const CHAT_SHARE_LINK_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
  * Error type carrying the HTTP status and machine-readable code from the
@@ -222,7 +223,35 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
         handler: (_req, res) => sendError(res, 429, 'rate_limited', 'Too many requests'),
     });
 
+    const lookupLimiter = rateLimit({
+        windowMs: 10 * 60 * 1000,
+        max: 20,
+        keyGenerator: (req) => req['user']?.sub || req.ip,
+        standardHeaders: 'draft-8',
+        handler: (_req, res) => sendError(res, 429, 'rate_limited', 'Too many requests'),
+    });
+
+    const shareRedeemLimiter = rateLimit({
+        windowMs: 60 * 1000,
+        max: 60,
+        standardHeaders: 'draft-8',
+        handler: (_req, res) => sendError(res, 429, 'rate_limited', 'Too many requests'),
+    });
+
     const now = () => new Date();
+
+    const requireShareTokenHash = (value: unknown): string => {
+        const token = requireBase64(value, 'token', { min: 32, max: 32 });
+        return sha256(Buffer.from(token, 'base64url')).toString('hex');
+    };
+
+    const resolveShareLink = async (tokenHash: string) => {
+        const link = await store.getChatShareLink(tokenHash);
+        if (!link || link.expiresAt.getTime() <= Date.now()) return null;
+        const chat = await store.getChat(link.chatId);
+        if (!chat) return null;
+        return { link, chat };
+    };
 
     const issueChallenge = async (
         kind: 'registration' | 'assertion',
@@ -391,6 +420,7 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
             })),
             publicKeyAlgorithm: record.publicKeyAlgorithm,
             publicKey: record.publicKey,
+            identityDisclosure: record.identity?.email ? 'profile' : 'subject',
             identityAttestation: options.attestor?.issue(record, options.identityIssuer) ?? null,
             ...(recentlyAsserted ? {
                 encryptedSk: recentlyAsserted.encryptedSk,
@@ -403,6 +433,25 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
         const userId = getUserId(req);
         await store.deleteUserKeys(userId);
         res.status(204).end();
+    }));
+
+    router.patch('/keys/me/identity-disclosure', writeLimiter, route(async (req, res) => {
+        const userId = getUserId(req);
+        const record = await store.getUserKeysByUserId(userId);
+        if (!record) throw new ZkError(404, 'not_found', 'No keys registered for this user');
+
+        const includeProfile = requireIdentityProfileDisclosure(req.body?.identityDisclosure);
+        const identity = identityClaimsFromRequest(
+            req['user'],
+            userId,
+            options.identityIssuer,
+            includeProfile,
+        );
+        if (!identity) {
+            throw new ZkError(503, 'identity_unavailable', 'The identity provider did not supply an issuer');
+        }
+        await store.updateUserIdentity(userId, identity);
+        res.json({ identityDisclosure: includeProfile ? 'profile' : 'subject' });
     }));
 
     router.patch('/keys/me/credentials/:credentialId', writeLimiter, route(async (req, res) => {
@@ -461,7 +510,113 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
         });
     }));
 
+    router.get('/keys/lookup', lookupLimiter, route(async (req, res) => {
+        const userId = getUserId(req);
+        if (!(await store.getUserKeysByUserId(userId))) {
+            throw new ZkError(403, 'forbidden', 'Encrypted chat storage is not enabled');
+        }
+        const requester = req['user'];
+        const email = typeof req.query.email === 'string'
+            ? req.query.email.trim().toLowerCase()
+            : '';
+        if (!email || email.length > 320 || !/^[^@\s]+@[^@\s]+$/.test(email)) {
+            throw new ZkError(400, 'invalid_payload', 'email must be a valid email address');
+        }
+
+        // Keep lookups within the authenticated user's verified email domain.
+        // Returning the same 404 for every miss prevents account enumeration.
+        const requesterEmail = typeof requester?.email === 'string' ? requester.email : '';
+        const requesterDomain = requesterEmail.split('@').at(-1)?.toLowerCase();
+        const requestedDomain = email.split('@').at(-1);
+        if (
+            requester?.email_verified !== true ||
+            !requesterDomain ||
+            requesterDomain !== requestedDomain
+        ) {
+            throw new ZkError(404, 'not_found', 'No discoverable recipient was found');
+        }
+
+        const recipient = await store.findUserKeysByEmail(email);
+        if (!recipient || recipient.userId === userId) {
+            throw new ZkError(404, 'not_found', 'No discoverable recipient was found');
+        }
+        res.json({
+            userId: recipient.userId,
+            publicKeyAlgorithm: recipient.publicKeyAlgorithm,
+            publicKey: recipient.publicKey,
+        });
+    }));
+
     // --- Chats -----------------------------------------------------------
+
+    // A link token is a revocable, seven-day capability. Store only its hash;
+    // the client keeps the decryption key in the URL fragment, which browsers
+    // never send to this server.
+    router.post('/chats/:id/share-link', writeLimiter, route(async (req, res) => {
+        const userId = getUserId(req);
+        const id = requireId(req.params.id, 'id');
+        const chat = await store.getChat(id);
+        if (!chat) throw new ZkError(404, 'not_found', 'Chat not found');
+        if (chat.ownerId !== userId) {
+            throw new ZkError(403, 'forbidden', 'Only the owner can create a share link');
+        }
+        if (!(await store.getUserKeysByUserId(userId))) {
+            throw new ZkError(403, 'forbidden', 'Encrypted chat storage is not enabled');
+        }
+
+        const token = toBase64Url(randomBytes(32));
+        const createdAt = now();
+        const expiresAt = new Date(createdAt.getTime() + CHAT_SHARE_LINK_TTL_MS);
+        const tokenHash = sha256(Buffer.from(token, 'base64url')).toString('hex');
+        await store.saveChatShareLink({ tokenHash, chatId: id, ownerId: userId, createdAt, expiresAt });
+        res.status(201).json({ token, expiresAt: expiresAt.toISOString() });
+    }));
+
+    router.post('/chats/:id/share-link/revoke', writeLimiter, route(async (req, res) => {
+        const userId = getUserId(req);
+        const id = requireId(req.params.id, 'id');
+        const tokenHash = requireShareTokenHash((req.body ?? {}).token);
+        const chat = await store.getChat(id);
+        if (!chat) throw new ZkError(404, 'not_found', 'Chat not found');
+        if (chat.ownerId !== userId) {
+            throw new ZkError(403, 'forbidden', 'Only the owner can revoke a share link');
+        }
+        const link = await store.getChatShareLink(tokenHash);
+        if (link?.chatId === id && link.ownerId === userId) {
+            await store.deleteChatShareLink(tokenHash);
+        }
+        res.status(204).end();
+    }));
+
+    router.post('/public-shares/redeem', shareRedeemLimiter, route(async (req, res) => {
+        const tokenHash = requireShareTokenHash((req.body ?? {}).token);
+        const resolved = await resolveShareLink(tokenHash);
+        if (!resolved) throw new ZkError(404, 'not_found', 'This share link is invalid or expired');
+        const { chat } = resolved;
+        res.set('Cache-Control', 'no-store').json({
+            id: chat.id,
+            rev: chat.rev,
+            ciphertext: chat.ciphertext,
+            iv: chat.iv,
+            metadataCt: chat.metadataCt,
+            metadataIv: chat.metadataIv,
+        });
+    }));
+
+    router.post('/public-shares/redeem-attachment', shareRedeemLimiter, route(async (req, res) => {
+        const body = req.body ?? {};
+        const tokenHash = requireShareTokenHash(body.token);
+        const resolved = await resolveShareLink(tokenHash);
+        if (!resolved) throw new ZkError(404, 'not_found', 'This share link is invalid or expired');
+        const attachmentId = requireId(body.attachmentId, 'attachmentId');
+        const attachment = await store.getAttachment(resolved.chat.id, attachmentId);
+        if (!attachment) throw new ZkError(404, 'not_found', 'Attachment not found');
+        res.status(200)
+            .type('application/octet-stream')
+            .set('Cache-Control', 'no-store')
+            .set('Content-Length', String(attachment.size));
+        await pipeline(attachment.stream, res);
+    }));
 
     router.get('/chats', route(async (req, res) => {
         const userId = getUserId(req);

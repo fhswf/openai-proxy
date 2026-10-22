@@ -567,6 +567,16 @@ app.get('/healthz', limiter, (req, res) => {
  */
 const checkAuth = (req, res, next) => {
 
+    // These POST routes redeem the random capability in the request body. They
+    // intentionally work for recipients without a vault account; the token is
+    // validated by the ZK router before any ciphertext is returned.
+    if (
+        req.method === 'POST' &&
+        /(?:^|\/)zk\/public-shares\/redeem(?:-attachment)?$/.test(req.path)
+    ) {
+        return next();
+    }
+
     const tokenCandidates = getTokenCandidates(req);
     logger.debug('token candidates', { count: tokenCandidates.length });
 
