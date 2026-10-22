@@ -10,6 +10,12 @@ This proxying enables university members to use the OpenAI API without revealing
 
 At FH Südwestfalen, the proxy is available at [login.ki.fh-swf.de/openai/ui/index.html](https://login.ki.fh-swf.de/openai/ui/index.html).
 
+### API reference
+
+Swagger UI is available at `/docs`, with the OpenAPI document at `/docs/openapi.json`.
+The reference documents common model, chat completion, response, and embedding
+operations. Other upstream API paths are forwarded by the proxy as well.
+
 ## Usage
 
 The proxy server is a docker container. To start the server, run the following command:
