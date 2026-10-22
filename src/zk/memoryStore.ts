@@ -2,11 +2,13 @@ import { Readable } from 'node:stream';
 import type {
     ChatEnvelopeRecord,
     ChatRecord,
+    ChatShareLinkRecord,
     ChatSummary,
     ZkAttachmentDownload,
     PendingChallengeRecord,
     UserCredentialRecord,
     UserKeysRecord,
+    UserIdentityClaims,
     ZkStore,
 } from './types.ts';
 
@@ -24,6 +26,7 @@ export class MemoryZkStore implements ZkStore {
     private chats = new Map<string, ChatRecord>();
     private envelopes = new Map<string, ChatEnvelopeRecord>();
     private attachments = new Map<string, Buffer>();
+    private chatShareLinks = new Map<string, ChatShareLinkRecord>();
 
     async init(): Promise<void> {
         // Nothing to initialise for the in-memory store.
@@ -73,10 +76,14 @@ export class MemoryZkStore implements ZkStore {
 
     async deleteUserKeys(userId: string): Promise<void> {
         const existing = this.userKeysById.get(userId);
-        if (!existing) return;
-        this.userKeysById.delete(userId);
-        for (const credential of existing.credentials) {
-            this.userKeysByCredential.delete(credential.credentialId);
+        if (existing) {
+            this.userKeysById.delete(userId);
+            for (const credential of existing.credentials) {
+                this.userKeysByCredential.delete(credential.credentialId);
+            }
+        }
+        for (const [tokenHash, link] of this.chatShareLinks) {
+            if (link.ownerId === userId) this.chatShareLinks.delete(tokenHash);
         }
     }
 
@@ -104,6 +111,11 @@ export class MemoryZkStore implements ZkStore {
         record.updatedAt = at;
     }
 
+    async updateUserIdentity(userId: string, identity: UserIdentityClaims | null): Promise<void> {
+        const record = this.userKeysById.get(userId);
+        if (record) record.identity = identity ? clone(identity) : null;
+    }
+
     async markAsserted(userId: string, credentialId: string, at: Date): Promise<void> {
         const record = this.userKeysById.get(userId);
         if (record) {
@@ -119,6 +131,19 @@ export class MemoryZkStore implements ZkStore {
             }
         }
 
+        return null;
+    }
+
+    async findUserKeysByEmail(email: string): Promise<UserKeysRecord | null> {
+        const normalizedEmail = email.toLowerCase();
+        for (const record of this.userKeysById.values()) {
+            if (
+                record.identity?.emailVerified === true &&
+                record.identity.email?.toLowerCase() === normalizedEmail
+            ) {
+                return clone(record);
+            }
+        }
         return null;
     }
 
@@ -222,6 +247,26 @@ export class MemoryZkStore implements ZkStore {
             }
         }
         await this.deleteAttachmentsForChat(id);
+        await this.deleteChatShareLinksForChat(id);
+    }
+
+    async saveChatShareLink(record: ChatShareLinkRecord): Promise<void> {
+        this.chatShareLinks.set(record.tokenHash, clone(record));
+    }
+
+    async getChatShareLink(tokenHash: string): Promise<ChatShareLinkRecord | null> {
+        const record = this.chatShareLinks.get(tokenHash);
+        return record ? clone(record) : null;
+    }
+
+    async deleteChatShareLink(tokenHash: string): Promise<void> {
+        this.chatShareLinks.delete(tokenHash);
+    }
+
+    async deleteChatShareLinksForChat(chatId: string): Promise<void> {
+        for (const [tokenHash, record] of this.chatShareLinks) {
+            if (record.chatId === chatId) this.chatShareLinks.delete(tokenHash);
+        }
     }
 
     private attachmentKey(chatId: string, attachmentId: string) {

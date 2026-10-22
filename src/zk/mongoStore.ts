@@ -3,10 +3,12 @@ import type { Readable } from 'node:stream';
 import type {
     ChatEnvelopeRecord,
     ChatRecord,
+    ChatShareLinkRecord,
     ChatSummary,
     PendingChallengeRecord,
     UserCredentialRecord,
     UserKeysRecord,
+    UserIdentityClaims,
     ZkAttachmentDownload,
     ZkStore,
 } from './types.ts';
@@ -70,6 +72,14 @@ interface ChatKeyDoc {
     created_at: Date;
 }
 
+interface ChatShareLinkDoc {
+    _id: string;
+    chat_id: string;
+    owner_id: string;
+    created_at: Date;
+    expires_at: Date;
+}
+
 const chatKeyKey = (chatId: string, recipientId: string) => ({ chat_id: chatId, recipient_id: recipientId });
 
 /**
@@ -99,6 +109,10 @@ export class MongoZkStore implements ZkStore {
         return this.getDb().collection<ChatKeyDoc>('chat_keys');
     }
 
+    private chatShareLinks(): Collection<ChatShareLinkDoc> {
+        return this.getDb().collection<ChatShareLinkDoc>('zk_chat_share_links');
+    }
+
     private attachments(): GridFSBucket {
         return new GridFSBucket(this.getDb(), { bucketName: 'zk_attachments' });
     }
@@ -109,6 +123,7 @@ export class MongoZkStore implements ZkStore {
         await this.chatsCollection().createIndex({ owner_id: 1, updated_at: -1 });
         await this.chatKeys().createIndex({ recipient_id: 1 });
         await this.chatKeys().createIndex({ chat_id: 1, recipient_id: 1 }, { unique: true });
+        await this.chatShareLinks().createIndex({ expires_at: 1 }, { expireAfterSeconds: 0 });
         await this.getDb().collection('zk_attachments.files').createIndex({
             'metadata.chatId': 1,
             'metadata.attachmentId': 1,
@@ -185,6 +200,14 @@ export class MongoZkStore implements ZkStore {
         return this.toUserKeys(await this.users().findOne({ public_key: publicKey }));
     }
 
+    async findUserKeysByEmail(email: string): Promise<UserKeysRecord | null> {
+        const escapedEmail = email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        return this.toUserKeys(await this.users().findOne({
+            'identity_claims.email': { $regex: `^${escapedEmail}$`, $options: 'i' },
+            'identity_claims.emailVerified': true,
+        }));
+    }
+
     async upsertUserKeys(record: UserKeysRecord): Promise<void> {
         const existing = await this.users().findOne({ _id: record.userId });
         const firstCredential = record.credentials[0];
@@ -233,6 +256,7 @@ export class MongoZkStore implements ZkStore {
 
     async deleteUserKeys(userId: string): Promise<void> {
         await this.users().deleteOne({ _id: userId });
+        await this.chatShareLinks().deleteMany({ owner_id: userId });
     }
 
     async deleteUserCredential(userId: string, credentialId: string): Promise<void> {
@@ -249,6 +273,13 @@ export class MongoZkStore implements ZkStore {
             ? { ...credential, name, updatedAt: at }
             : credential);
         await this.upsertUserKeys({ ...existing, credentials, updatedAt: at });
+    }
+
+    async updateUserIdentity(userId: string, identity: UserIdentityClaims | null): Promise<void> {
+        await this.users().updateOne(
+            { _id: userId },
+            { $set: { identity_claims: identity, updated_at: new Date() } },
+        );
     }
 
     async markAsserted(userId: string, credentialId: string, at: Date): Promise<void> {
@@ -375,6 +406,37 @@ export class MongoZkStore implements ZkStore {
         await this.chatsCollection().deleteOne({ _id: id });
         await this.chatKeys().deleteMany({ chat_id: id });
         await this.deleteAttachmentsForChat(id);
+        await this.deleteChatShareLinksForChat(id);
+    }
+
+    async saveChatShareLink(record: ChatShareLinkRecord): Promise<void> {
+        await this.chatShareLinks().insertOne({
+            _id: record.tokenHash,
+            chat_id: record.chatId,
+            owner_id: record.ownerId,
+            created_at: record.createdAt,
+            expires_at: record.expiresAt,
+        });
+    }
+
+    async getChatShareLink(tokenHash: string): Promise<ChatShareLinkRecord | null> {
+        const doc = await this.chatShareLinks().findOne({ _id: tokenHash });
+        if (!doc) return null;
+        return {
+            tokenHash: doc._id,
+            chatId: doc.chat_id,
+            ownerId: doc.owner_id,
+            createdAt: doc.created_at,
+            expiresAt: doc.expires_at,
+        };
+    }
+
+    async deleteChatShareLink(tokenHash: string): Promise<void> {
+        await this.chatShareLinks().deleteOne({ _id: tokenHash });
+    }
+
+    async deleteChatShareLinksForChat(chatId: string): Promise<void> {
+        await this.chatShareLinks().deleteMany({ chat_id: chatId });
     }
 
     async putAttachment(chatId: string, attachmentId: string, source: Readable): Promise<void> {

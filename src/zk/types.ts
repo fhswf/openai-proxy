@@ -56,6 +56,14 @@ export interface ChatRecord {
     updatedAt: Date;
 }
 
+export interface ChatShareLinkRecord {
+    tokenHash: string;
+    chatId: string;
+    ownerId: string;
+    createdAt: Date;
+    expiresAt: Date;
+}
+
 export interface ChatEnvelopeRecord {
     chat_id: string;
     recipient_id: string;
@@ -101,7 +109,9 @@ export interface ZkStore {
     deleteUserKeys(userId: string): Promise<void>;
     deleteUserCredential(userId: string, credentialId: string): Promise<void>;
     renameUserCredential(userId: string, credentialId: string, name: string, at: Date): Promise<void>;
+    updateUserIdentity(userId: string, identity: UserIdentityClaims | null): Promise<void>;
     findUserKeysByPublicKey(publicKey: string): Promise<UserKeysRecord | null>;
+    findUserKeysByEmail(email: string): Promise<UserKeysRecord | null>;
     markAsserted(userId: string, credentialId: string, at: Date): Promise<void>;
 
     saveChallenge(record: PendingChallengeRecord): Promise<void>;
@@ -111,6 +121,11 @@ export interface ZkStore {
     getChat(id: string): Promise<ChatRecord | null>;
     upsertChat(record: ChatRecord, selfEnvelope: ChatEnvelopeRecord, baseRev?: number | null): Promise<'created' | 'updated' | 'conflict'>;
     deleteChat(id: string): Promise<void>;
+
+    saveChatShareLink(record: ChatShareLinkRecord): Promise<void>;
+    getChatShareLink(tokenHash: string): Promise<ChatShareLinkRecord | null>;
+    deleteChatShareLink(tokenHash: string): Promise<void>;
+    deleteChatShareLinksForChat(chatId: string): Promise<void>;
 
     putAttachment(chatId: string, attachmentId: string, source: Readable): Promise<void>;
     getAttachment(chatId: string, attachmentId: string): Promise<ZkAttachmentDownload | null>;

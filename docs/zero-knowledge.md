@@ -38,16 +38,22 @@ are streamed through GridFS.
 | POST | `/api/zk/keys/assertion-challenge` | Issue a challenge bound to a `credentialId` |
 | POST | `/api/zk/keys/assertion` | Verify `{credentialId, challenge, authenticatorData, clientDataJSON, signature}`; unlocks `encryptedSk` |
 | GET | `/api/zk/keys/me` | Return the caller's named passkeys, public key, and identity attestation (a passkey's wrapped `encryptedSk` only after a fresh assertion) |
+| PATCH | `/api/zk/keys/me/identity-disclosure` | Choose whether verified profile claims, including email, are discoverable for chat sharing |
 | DELETE | `/api/zk/keys/me` | Remove the caller's keys; encrypted chat records remain inaccessible |
 | PATCH | `/api/zk/keys/me/credentials/{credentialId}` | Rename one of the caller's passkeys |
 | DELETE | `/api/zk/keys/me/credentials/{credentialId}` | Remove one passkey, leaving the user's key and other passkeys in place |
 | GET | `/api/zk/keys/attestation-jwks` | Return the proxy's public verification key |
 | GET | `/api/zk/keys/{userId}/public-key` | Another user's key and identity attestation, for sharing |
+| GET | `/api/zk/keys/lookup?email={email}` | Find a recipient by verified email within the caller's email domain |
 | POST | `/api/zk/keys/rotate` | Re-wrap `SK_user` under a new passkey/credential; may also update identity disclosure |
 | GET | `/api/zk/chats` | List chats visible to the caller (no ciphertext) |
 | GET | `/api/zk/chats/{id}` | Fetch a chat with all key envelopes |
 | PUT | `/api/zk/chats/{id}` | Create or update a chat (`baseRev` for optimistic locking) |
 | POST | `/api/zk/chats/{id}/share` | Add a wrapped `K_chat` for a recipient |
+| POST | `/api/zk/chats/{id}/share-link` | Create a seven-day, revocable capability link (owner only) |
+| POST | `/api/zk/chats/{id}/share-link/revoke` | Revoke a capability link using its token (owner only) |
+| POST | `/api/zk/public-shares/redeem` | Return linked chat ciphertext for a valid token; no account required |
+| POST | `/api/zk/public-shares/redeem-attachment` | Return linked attachment ciphertext for a valid token |
 | POST | `/api/zk/chats/{id}/revoke` | Remove a recipient's envelope (owner only) |
 | DELETE | `/api/zk/chats/{id}` | Delete a chat (owner only) |
 | HEAD | `/api/zk/chats/{id}/attachments/{attachmentId}` | Check whether an encrypted attachment exists |
@@ -59,6 +65,15 @@ Attachment requests use `application/octet-stream`. The server streams the
 opaque IV-plus-ciphertext body to and from MongoDB GridFS; it does not receive
 the filename or plaintext. A chat envelope is required to download an
 attachment. Upload and deletion are restricted to the chat owner.
+
+Email lookup is available only for an authenticated user's verified email
+domain and recipients who explicitly enabled profile disclosure. Both a miss
+and an undiscoverable account return `404`. Share-link tokens contain 256 bits
+of randomness; the database stores only their SHA-256 hashes. The share URL
+keeps both the token and AES chat key in its fragment, so neither is sent with
+the page request. The client sends the token in the redemption request body.
+Link redemption returns ciphertext without an envelope and is rate-limited by IP.
+The owner can revoke a link before its seven-day expiry.
 
 Register a passkey with a user-provided `credentialName` (up to 80 printable
 characters). For a second or later passkey, send the same account
