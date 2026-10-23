@@ -18,6 +18,8 @@ export interface UserIdentityClaims {
 export interface UserPasskeyRecord {
     credentialId: string;
     name: string;
+    /** RP ID the authenticator bound this credential to. Missing on legacy records. */
+    rpId?: string | null;
     credentialPublicKey: string;
     encryptedSk: string;
     encryptedSkIv: string;
@@ -155,6 +157,7 @@ export interface PendingChallengeRecord {
     kind: 'registration' | 'assertion';
     credentialId: string | null;
     userId: string | null;
+    rpId?: string | null;
     expiresAt: Date;
 }
 
@@ -187,7 +190,7 @@ export interface ZkStore {
     updateUserIdentity(userId: string, identity: UserIdentityClaims | null): Promise<void>;
     findUserKeysByPublicKey(publicKey: string): Promise<UserKeysRecord | null>;
     findUserKeysByEmail(email: string): Promise<UserKeysRecord | null>;
-    markAsserted(userId: string, credentialId: string, at: Date): Promise<void>;
+    markAsserted(userId: string, credentialId: string, at: Date, rpId: string): Promise<void>;
 
     saveChallenge(record: PendingChallengeRecord): Promise<void>;
     takeChallenge(challenge: string): Promise<PendingChallengeRecord | null>;

@@ -40,6 +40,7 @@ interface UserKeysDoc {
 interface UserPasskeyDoc {
     credential_id: string;
     name: string;
+    rp_id?: string | null;
     credential_public_key: string;
     encrypted_sk: string;
     encrypted_sk_iv: string;
@@ -53,6 +54,7 @@ interface ChallengeDoc {
     kind: 'registration' | 'assertion';
     credential_id: string | null;
     user_id: string | null;
+    rp_id?: string | null;
     expires_at: Date;
 }
 
@@ -253,6 +255,7 @@ export class MongoZkStore implements ZkStore {
             credentials: doc.credentials?.map(credential => ({
                 credentialId: credential.credential_id,
                 name: credential.name || 'Passkey',
+                rpId: credential.rp_id ?? null,
                 credentialPublicKey: credential.credential_public_key,
                 encryptedSk: credential.encrypted_sk,
                 encryptedSkIv: credential.encrypted_sk_iv,
@@ -263,6 +266,7 @@ export class MongoZkStore implements ZkStore {
                 ? [{
                     credentialId: doc.credential_id,
                     name: 'Passkey',
+                    rpId: null,
                     credentialPublicKey: doc.credential_public_key,
                     encryptedSk: doc.encrypted_sk,
                     encryptedSkIv: doc.encrypted_sk_iv,
@@ -315,6 +319,7 @@ export class MongoZkStore implements ZkStore {
                     credentials: record.credentials.map(credential => ({
                         credential_id: credential.credentialId,
                         name: credential.name,
+                        rp_id: credential.rpId ?? null,
                         credential_public_key: credential.credentialPublicKey,
                         encrypted_sk: credential.encryptedSk,
                         encrypted_sk_iv: credential.encryptedSkIv,
@@ -379,12 +384,13 @@ export class MongoZkStore implements ZkStore {
         );
     }
 
-    async markAsserted(userId: string, credentialId: string, at: Date): Promise<void> {
+    async markAsserted(userId: string, credentialId: string, at: Date, rpId: string): Promise<void> {
         await this.users().updateOne(
             { _id: userId, 'credentials.credential_id': credentialId },
             {
                 $set: {
                     'credentials.$.asserted_at': at,
+                    'credentials.$.rp_id': rpId,
                     updated_at: at,
                 },
             },
@@ -404,6 +410,7 @@ export class MongoZkStore implements ZkStore {
             kind: record.kind,
             credential_id: record.credentialId,
             user_id: record.userId,
+            rp_id: record.rpId ?? null,
             expires_at: record.expiresAt,
         });
     }
@@ -420,6 +427,7 @@ export class MongoZkStore implements ZkStore {
             kind: doc.kind,
             credentialId: doc.credential_id,
             userId: doc.user_id,
+            rpId: doc.rp_id ?? null,
             expiresAt: doc.expires_at,
         };
     }

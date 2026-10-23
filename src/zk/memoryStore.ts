@@ -124,11 +124,14 @@ export class MemoryZkStore implements ZkStore {
         if (record) record.identity = identity ? clone(identity) : null;
     }
 
-    async markAsserted(userId: string, credentialId: string, at: Date): Promise<void> {
+    async markAsserted(userId: string, credentialId: string, at: Date, rpId: string): Promise<void> {
         const record = this.userKeysById.get(userId);
         if (record) {
             const credential = record.credentials.find(item => item.credentialId === credentialId);
-            if (credential) credential.assertedAt = at;
+            if (credential) {
+                credential.assertedAt = at;
+                credential.rpId = rpId;
+            }
         }
     }
 

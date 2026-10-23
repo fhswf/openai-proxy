@@ -86,8 +86,9 @@ monotone revision. `PUT` uses `baseRev`; omit it for the first write and send
 must match the caller's registered key.
 
 `POST /chats/{id}/group` enables collaboration on a chat already created by
-the owner. The request supplies a unique member ID list (including the owner)
-and exactly one wrapped epoch key per member. The owner is assigned role
+the owner. The request supplies a unique member ID list (including the owner);
+it may contain only the owner. It also supplies exactly one wrapped epoch key
+per member. The owner is assigned role
 `owner`; all others receive role `member`. Each member must have registered
 zk keys, and each envelope algorithm must match that member's registered
 public key.

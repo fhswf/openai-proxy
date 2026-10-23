@@ -75,6 +75,7 @@ export function verifyAssertion(
     expectedChallenge: string,
     publicKey: string,
     config: WebAuthnConfig,
+    credentialRpId?: string,
 ): WebAuthnVerification {
     const authData = fromBase64Url(input.authenticatorData);
     const clientDataRaw = fromBase64Url(input.clientDataJSON);
@@ -119,14 +120,21 @@ export function verifyAssertion(
     // The client origin is checked against the server's allowlist above, so
     // deriving the default from it supports localhost and multiple frontends
     // without coupling the passkey RP ID to the unrelated OIDC issuer host.
-    let rpId = config.rpId;
-    if (!rpId) {
-        try {
-            rpId = new URL(clientData.origin!).hostname;
-        }
-        catch {
-            return { ok: false, reason: 'origin_mismatch' };
-        }
+    let originHost: string;
+    try {
+        originHost = new URL(clientData.origin!).hostname;
+    }
+    catch {
+        return { ok: false, reason: 'origin_mismatch' };
+    }
+
+    const configuredRpId = config.rpId &&
+        (originHost === config.rpId || originHost.endsWith(`.${config.rpId}`))
+        ? config.rpId
+        : undefined;
+    const rpId = credentialRpId ?? configuredRpId ?? originHost;
+    if (originHost !== rpId && !originHost.endsWith(`.${rpId}`)) {
+        return { ok: false, reason: 'rp_id_mismatch' };
     }
 
     const rpIdHash = sha256(rpId);
