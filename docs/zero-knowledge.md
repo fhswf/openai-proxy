@@ -46,9 +46,17 @@ are streamed through GridFS.
 | GET | `/api/zk/keys/{userId}/public-key` | Another user's key and identity attestation, for sharing |
 | GET | `/api/zk/keys/lookup?email={email}` | Find a recipient by verified email within the caller's email domain |
 | POST | `/api/zk/keys/rotate` | Re-wrap `SK_user` under a new passkey/credential; may also update identity disclosure |
+| GET | `/api/zk/group-catalog` | Fetch the caller's encrypted saved-group roster catalog and self-envelope |
+| PUT | `/api/zk/group-catalog` | Create or update the encrypted saved-group roster catalog (`baseRev` for optimistic locking) |
 | GET | `/api/zk/chats` | List chats visible to the caller (no ciphertext) |
-| GET | `/api/zk/chats/{id}` | Fetch a chat with all key envelopes |
+| GET | `/api/zk/chats/{id}` | Fetch a chat and its available key envelopes (group chats return only the caller's) |
 | PUT | `/api/zk/chats/{id}` | Create or update a chat (`baseRev` for optimistic locking) |
+| POST | `/api/zk/chats/{id}/group` | Enable group collaboration on an owner-created chat with epoch 1 envelopes for every member |
+| GET | `/api/zk/chats/{id}/group` | Fetch active member IDs and the caller's key envelopes for each granted epoch |
+| PUT | `/api/zk/chats/{id}/group/membership` | Replace group membership and rotate to a new key epoch (owner only) |
+| GET | `/api/zk/chats/{id}/events?after={cursor}&limit={limit}` | Fetch committed encrypted events after a sequence cursor |
+| POST | `/api/zk/chats/{id}/events` | Append an encrypted group event (active member and current epoch required) |
+| GET (upgrade) | `/api/zk/ws` | Authenticate a WebSocket for group event catch-up and live delivery |
 | POST | `/api/zk/chats/{id}/share` | Add a wrapped `K_chat` for a recipient |
 | POST | `/api/zk/chats/{id}/share-link` | Create a seven-day, revocable capability link (owner only) |
 | POST | `/api/zk/chats/{id}/share-link/revoke` | Revoke a capability link using its token (owner only) |
@@ -64,7 +72,72 @@ are streamed through GridFS.
 Attachment requests use `application/octet-stream`. The server streams the
 opaque IV-plus-ciphertext body to and from MongoDB GridFS; it does not receive
 the filename or plaintext. A chat envelope is required to download an
-attachment. Upload and deletion are restricted to the chat owner.
+attachment. Upload and deletion are restricted to the owner for regular chats;
+active group members may upload or delete group-chat attachments. Legacy
+whole-chat writes, individual share/revoke, and share links are disabled for
+group chats; use group events and membership APIs instead.
+
+### Group catalogs, membership, events, and WebSockets
+
+The group catalog is an opaque client-encrypted object owned by one user. Its
+AES-GCM ciphertext and self-envelope are stored under that user ID with a
+monotone revision. `PUT` uses `baseRev`; omit it for the first write and send
+`0` to assert that no catalog exists. The public key algorithm on the envelope
+must match the caller's registered key.
+
+`POST /chats/{id}/group` enables collaboration on a chat already created by
+the owner. The request supplies a unique member ID list (including the owner)
+and exactly one wrapped epoch key per member. The owner is assigned role
+`owner`; all others receive role `member`. Each member must have registered
+zk keys, and each envelope algorithm must match that member's registered
+public key.
+
+`GET /chats/{id}/group` is available to active members. It returns the active
+member IDs, current epoch, committed event cursor, and only the caller's
+envelopes. The legacy `GET /chats/{id}` response also limits a group member to
+their own current-epoch envelope. A membership
+replacement requires `baseEpoch` and the full new member list. The request
+must include a fresh epoch envelope for every active member. It may also
+include envelopes for prior epochs to grant a newly added member access to
+history. The owner cannot remove themself. Epoch comparison is atomic, so a
+stale update returns `409` with `currentEpoch`.
+
+Events contain a client-generated `eventId`, epoch, AES-GCM IV, and opaque
+ciphertext (up to 256 KiB decoded, with a 12-byte IV). The proxy assigns a per-chat sequence and an authenticated
+`actorId`; duplicate event IDs from the same actor are idempotent. Event writes
+require current membership and the current epoch. Event reads require current
+membership and use a sequence cursor. Removed users cannot fetch events after
+removal, although ciphertext or keys already downloaded cannot be recalled.
+The proxy does not validate event plaintext or AES-GCM additional authenticated
+data.
+
+The WebSocket endpoint is available at the same API prefix as the REST router,
+at `/api/zk/ws` (and `/zk/ws` when the deployment strips `/api`). The upgrade
+requires an allowed `Origin` and the proxy's OIDC token cookie or a Bearer
+token. Clients send JSON messages:
+
+```json
+{ "type": "subscribe", "chatId": "chat-id", "after": 42 }
+{ "type": "append", "requestId": "req-id", "chatId": "chat-id", "eventId": "event-id", "epoch": 2, "ciphertext": "...", "iv": "..." }
+{ "type": "unsubscribe", "chatId": "chat-id" }
+```
+
+The server sends `ready`, `subscribed`, `event`, `ack`, `catchup_complete`,
+`unsubscribed`, and structured `error` messages. Appends go through the same
+idempotent event store as the REST endpoint. Events are persisted before they
+are broadcast. Clients should retain their cursor and use REST or socket
+catch-up after reconnecting; the WebSocket is a delivery channel, not the
+durable source of truth.
+
+MongoDB stores durable events in `zk_group_chat_events`. Cross-replica event
+notifications use the capped `zk_group_chat_notifications` collection with a
+tailable cursor, so every proxy instance can relay events to its connected
+sockets without requiring MongoDB change streams or an external pub/sub
+service. The capped collection is only a notification outbox; clients recover
+from the durable event collection by cursor.
+
+Converting a chat to a group also revokes any existing capability share links.
+Regular-chat share links cannot be redeemed once a chat is a group chat.
 
 Email lookup is available only for an authenticated user's verified email
 domain and recipients who explicitly enabled profile disclosure. Both a miss
@@ -263,5 +336,7 @@ cannot constrain a backend operator who can change the API or its database.
 | `ZK_WRITE_RATE_LIMIT` | `120` | Write requests per user per minute for `/api/zk` |
 
 Storage uses the existing MongoDB connection (`user_keys`, `chats`,
-`chat_keys`, `zk_challenges`). With `IGNORE_DB=true` an in-memory store is used
-for local development and tests.
+`chat_keys`, `zk_challenges`, `zk_group_catalogs`, `zk_group_chats`,
+`zk_group_chat_events`, and the capped `zk_group_chat_notifications`). With
+`IGNORE_DB=true` an in-memory store is used for local development and tests;
+its WebSocket event delivery is process-local.
