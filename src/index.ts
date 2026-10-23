@@ -139,11 +139,20 @@ app.use(cors({
 }));
 
 // Documentation is public so clients can discover the API before logging in.
-// Keep it ahead of the authentication middleware mounted below.
-app.get('/docs', (req, res) => res.redirect(308, 'docs/'));
+// Keep it ahead of the authentication middleware mounted below. Express matches
+// /docs/ against /docs unless strict routing is enabled, so only redirect the
+// exact no-slash path; let the Swagger handler serve /docs/ itself.
+app.get('/docs', (req, res, next) => {
+    if (req.path !== '/docs') return next();
+    res.redirect(308, 'docs/');
+});
+// swagger-ui-express serves its bundled index.html directly from the static
+// middleware. That page uses Swagger UI's Petstore default instead of the
+// configured OpenAPI URL, so send index.html to the configured UI page.
+app.get('/docs/index.html', (_req, res) => res.redirect(308, './'));
 app.get('/docs/openapi.json', (req, res) => res.json(openApiDocument));
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(null, {
-    swaggerOptions: { url: 'openapi.json' },
+    swaggerOptions: { url: './openapi.json' },
     customSiteTitle: 'OpenAI Proxy API',
 }));
 
