@@ -263,8 +263,12 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
             }
         }
 
+        const fallbackOrigin = webauthn.origins[0];
+        if (!claimedRpId && !requestOrigin && !webauthn.rpId && !fallbackOrigin) {
+            throw new ZkError(503, 'webauthn_unavailable', 'No WebAuthn client origins are configured');
+        }
         const rpId = claimedRpId ?? requestOrigin?.hostname ?? webauthn.rpId ??
-            new URL(webauthn.origins[0]).hostname;
+            new URL(fallbackOrigin!).hostname;
         if (!/^[a-z0-9.-]+$/i.test(rpId) || rpId.startsWith('.') || rpId.endsWith('.')) {
             throw new ZkError(400, 'invalid_payload', 'Invalid WebAuthn RP ID');
         }
@@ -403,13 +407,17 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
         const userId = getUserId(req);
         const body = req.body ?? {};
         const rpId = requestRpId(req, body.rpId);
-        const credentialId = requireBase64(body.credentialId, 'credentialId', { min: 1, max: MAX_CREDENTIAL_ID_BYTES });
+        const credentialId = body.credentialId == null
+            ? null
+            : requireBase64(body.credentialId, 'credentialId', { min: 1, max: MAX_CREDENTIAL_ID_BYTES });
 
-        const registeredCredential = await store.getUserCredentialById(credentialId);
-        if (!registeredCredential || registeredCredential.userKeys.userId !== userId ||
-            (registeredCredential.credential.rpId &&
-                !credentialMatchesRpId(registeredCredential.credential.rpId, rpId))) {
-            throw new ZkError(404, 'not_found', 'Unknown credential');
+        if (credentialId) {
+            const registeredCredential = await store.getUserCredentialById(credentialId);
+            if (!registeredCredential || registeredCredential.userKeys.userId !== userId ||
+                (registeredCredential.credential.rpId &&
+                    !credentialMatchesRpId(registeredCredential.credential.rpId, rpId))) {
+                throw new ZkError(404, 'not_found', 'Unknown credential');
+            }
         }
 
         const challenge = await issueChallenge('assertion', credentialId, userId, rpId);
@@ -432,7 +440,7 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
             throw new ZkError(400, 'invalid_payload', 'Invalid or expired challenge');
         }
 
-        if (pending.credentialId !== credentialId || pending.rpId !== rpId) {
+        if ((pending.credentialId && pending.credentialId !== credentialId) || pending.rpId !== rpId) {
             throw new ZkError(400, 'invalid_payload', 'Challenge is bound to a different credential');
         }
 
@@ -490,6 +498,7 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
                 createdAt: credential.createdAt.toISOString(),
                 canDelete: record.credentials.length > 1,
             })),
+            allowedOrigins: webauthn.origins,
             publicKeyAlgorithm: record.publicKeyAlgorithm,
             publicKey: record.publicKey,
             identityDisclosure: record.identity?.email ? 'profile' : 'subject',

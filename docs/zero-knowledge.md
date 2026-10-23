@@ -33,11 +33,11 @@ are streamed through GridFS.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| POST | `/api/zk/keys/registration-challenge` | Issue a short-lived registration challenge |
-| POST | `/api/zk/keys` | Register the user's first passkey or add another named passkey; optional `identityDisclosure: "subject" | "profile"` controls identity claims in the attestation |
-| POST | `/api/zk/keys/assertion-challenge` | Issue a challenge bound to a `credentialId` |
+| POST | `/api/zk/keys/registration-challenge` | Issue a short-lived registration challenge bound to the client RP ID |
+| POST | `/api/zk/keys` | Register the user's first passkey or add another named passkey for the client RP ID; optional `identityDisclosure: "subject" | "profile"` controls identity claims in the attestation |
+| POST | `/api/zk/keys/assertion-challenge` | Issue a challenge bound to a `credentialId` and client RP ID; omit `credentialId` for discoverable passkey selection |
 | POST | `/api/zk/keys/assertion` | Verify `{credentialId, challenge, authenticatorData, clientDataJSON, signature}`; unlocks `encryptedSk` |
-| GET | `/api/zk/keys/me` | Return the caller's named passkeys, public key, and identity attestation (a passkey's wrapped `encryptedSk` only after a fresh assertion) |
+| GET | `/api/zk/keys/me?rpId={hostname}` | Return only the caller's passkeys valid for this client domain, plus the shared public key and identity attestation (a passkey's wrapped `encryptedSk` only after a fresh assertion) |
 | PATCH | `/api/zk/keys/me/identity-disclosure` | Choose whether verified profile claims, including email, are discoverable for chat sharing |
 | DELETE | `/api/zk/keys/me` | Remove the caller's keys; encrypted chat records remain inaccessible |
 | PATCH | `/api/zk/keys/me/credentials/{credentialId}` | Rename one of the caller's passkeys |
@@ -158,8 +158,19 @@ registration without `credentialName` is accepted for older clients and is
 named `Passkey`. Existing passkeys can be renamed with `PATCH` to the
 credential resource using `{ "credentialName": "..." }`.
 
-`GET /api/zk/keys/me` returns a `credentials` array containing each
-`credentialId`, `name`, and `createdAt`. The legacy top-level `credentialId`
+Each credential stores its WebAuthn RP ID. `GET /api/zk/keys/me` filters the
+credential list to the requesting client's hostname (including credentials
+bound to a valid parent domain). The account's public key remains shared across
+those RP IDs. To add the first passkey on another allowed domain, the browser
+creates a one-time ECDH request code there. On a domain with an existing
+passkey, the user confirms that passkey and creates an encrypted response code.
+The response is bound to the destination origin and account. Both codes are
+exchanged directly by the user; the backend never receives the private key or
+either code.
+
+`GET /api/zk/keys/me` returns a `credentials` array for the caller's RP ID,
+containing each `credentialId`, `name`, `createdAt`, and whether it can be
+deleted while leaving another passkey on the account. The legacy top-level `credentialId`
 and `credentialName` fields identify the passkey whose `encryptedSk` is
 returned after assertion, or the first passkey when no recent assertion exists.
 Assertion challenges are bound to the requested `credentialId`. Only the
@@ -332,7 +343,7 @@ cannot constrain a backend operator who can change the API or its database.
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `WEBAUTHN_RP_ID` | hostname of the allowlisted request origin | Optional fixed relying-party id accepted in assertions; by default the server uses the hostname of the allowlisted frontend origin |
+| `WEBAUTHN_RP_ID` | hostname of the allowlisted request origin | Optional fallback RP ID for legacy credentials without stored RP metadata; new credentials use the client hostname and store it per credential |
 | `WEBAUTHN_ORIGINS` | `CORS_ORIGINS` | JSON array or comma-separated list of accepted origins |
 | `ZK_WRITE_RATE_LIMIT` | `120` | Write requests per user per minute for `/api/zk` |
 
