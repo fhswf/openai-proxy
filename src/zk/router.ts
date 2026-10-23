@@ -272,12 +272,13 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
         if (!/^[a-z0-9.-]+$/i.test(rpId) || rpId.startsWith('.') || rpId.endsWith('.')) {
             throw new ZkError(400, 'invalid_payload', 'Invalid WebAuthn RP ID');
         }
-        if (requestOrigin && requestOrigin.hostname !== rpId) {
+        if (requestOrigin && requestOrigin.hostname !== rpId &&
+            !requestOrigin.hostname.endsWith(`.${rpId}`)) {
             throw new ZkError(403, 'rp_id_mismatch', 'RP ID does not match the client origin');
         }
         const allowedForRpId = webauthn.origins.some((origin) => {
             const hostname = new URL(origin).hostname;
-            return hostname === rpId;
+            return hostname === rpId || hostname.endsWith(`.${rpId}`);
         });
         if (!allowedForRpId) {
             throw new ZkError(403, 'rp_id_mismatch', 'RP ID is not configured for an allowed client');
@@ -1331,6 +1332,7 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
     router.post('/keys/rotate', writeLimiter, route(async (req, res) => {
         const userId = getUserId(req);
         const body = req.body ?? {};
+        const rpId = requestRpId(req, body.rpId);
         const includeIdentityProfile = requireIdentityProfileDisclosure(body.identityDisclosure);
         const credentialName = requireCredentialName(body.credentialName);
 
@@ -1342,7 +1344,7 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
         const challenge = requireBase64(body.challenge, 'challenge', { min: 1 });
 
         const pending = await store.takeChallenge(challenge);
-        if (!pending || pending.kind !== 'registration') {
+        if (!pending || pending.kind !== 'registration' || pending.rpId !== rpId) {
             throw new ZkError(400, 'invalid_payload', 'Invalid or expired challenge');
         }
 
@@ -1369,6 +1371,7 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
             credentials: [{
                 credentialId,
                 name: credentialName,
+                rpId,
                 credentialPublicKey,
                 encryptedSk,
                 encryptedSkIv,
