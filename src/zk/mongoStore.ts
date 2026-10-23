@@ -7,6 +7,7 @@ import type {
     ChatShareLinkRecord,
     ChatSummary,
     GroupCatalogRecord,
+    UserSettingsRecord,
     GroupChatRecord,
     GroupChatEventRecord,
     GroupChatEventListener,
@@ -101,6 +102,18 @@ interface GroupCatalogDoc {
     updated_at: Date;
 }
 
+interface UserSettingsDoc {
+    _id: string;
+    ciphertext: string;
+    iv: string;
+    envelope_algorithm: UserSettingsRecord['envelope']['envelope_algorithm'];
+    ephemeral_public_key: string | null;
+    wrapped_key: string;
+    wrapped_key_iv: string | null;
+    rev: number;
+    updated_at: Date;
+}
+
 interface GroupChatMemberDoc {
     user_id: string;
     role: 'owner' | 'member';
@@ -179,6 +192,10 @@ export class MongoZkStore implements ZkStore {
 
     private groupCatalogs(): Collection<GroupCatalogDoc> {
         return this.getDb().collection<GroupCatalogDoc>('zk_group_catalogs');
+    }
+
+    private userSettings(): Collection<UserSettingsDoc> {
+        return this.getDb().collection<UserSettingsDoc>('zk_user_settings');
     }
 
     private groupChats(): Collection<GroupChatDoc> {
@@ -359,6 +376,7 @@ export class MongoZkStore implements ZkStore {
     async deleteUserKeys(userId: string): Promise<void> {
         await this.users().deleteOne({ _id: userId });
         await this.chatShareLinks().deleteMany({ owner_id: userId });
+        await this.userSettings().deleteOne({ _id: userId });
     }
 
     async deleteUserCredential(userId: string, credentialId: string): Promise<void> {
@@ -775,6 +793,56 @@ export class MongoZkStore implements ZkStore {
         const result = await collection.updateOne(
             { _id: record.userId, rev: baseRev },
             { $set: fields, $inc: { rev: 1 } },
+        );
+        return result.modifiedCount === 1 ? 'updated' : 'conflict';
+    }
+
+    async getUserSettings(userId: string): Promise<UserSettingsRecord | null> {
+        const doc = await this.userSettings().findOne({ _id: userId });
+        if (!doc) return null;
+        return {
+            userId: doc._id,
+            ciphertext: doc.ciphertext,
+            iv: doc.iv,
+            envelope: {
+                envelope_algorithm: doc.envelope_algorithm,
+                ephemeral_public_key: doc.ephemeral_public_key,
+                wrapped_key: doc.wrapped_key,
+                wrapped_key_iv: doc.wrapped_key_iv,
+            },
+            rev: doc.rev,
+            updatedAt: doc.updated_at,
+        };
+    }
+
+    async putUserSettings(record: UserSettingsRecord, baseRev?: number | null): Promise<'created' | 'updated' | 'conflict'> {
+        const collection = this.userSettings();
+        const existing = await collection.findOne({ _id: record.userId });
+        const fields = {
+            ciphertext: record.ciphertext,
+            iv: record.iv,
+            envelope_algorithm: record.envelope.envelope_algorithm,
+            ephemeral_public_key: record.envelope.ephemeral_public_key,
+            wrapped_key: record.envelope.wrapped_key,
+            wrapped_key_iv: record.envelope.wrapped_key_iv,
+            updated_at: record.updatedAt,
+        };
+
+        if (!existing) {
+            if (baseRev != null && baseRev !== 0) return 'conflict';
+            try {
+                await collection.insertOne({ _id: record.userId, ...fields, rev: 1 });
+                return 'created';
+            } catch (error) {
+                if ((error as { code?: number }).code === 11000) return 'conflict';
+                throw error;
+            }
+        }
+
+        if (baseRev == null || existing.rev !== baseRev) return 'conflict';
+        const result = await collection.updateOne(
+            { _id: record.userId, rev: baseRev },
+            { $set: { ...fields, rev: baseRev + 1 } },
         );
         return result.modifiedCount === 1 ? 'updated' : 'conflict';
     }

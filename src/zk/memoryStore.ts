@@ -5,6 +5,7 @@ import type {
     ChatShareLinkRecord,
     ChatSummary,
     GroupCatalogRecord,
+    UserSettingsRecord,
     GroupChatRecord,
     GroupChatEventRecord,
     GroupChatEventAppendResult,
@@ -33,6 +34,7 @@ export class MemoryZkStore implements ZkStore {
     private attachments = new Map<string, Buffer>();
     private chatShareLinks = new Map<string, ChatShareLinkRecord>();
     private groupCatalogs = new Map<string, GroupCatalogRecord>();
+    private userSettings = new Map<string, UserSettingsRecord>();
     private groupChats = new Map<string, GroupChatRecord>();
     private groupChatEvents = new Map<string, GroupChatEventRecord[]>();
 
@@ -93,6 +95,7 @@ export class MemoryZkStore implements ZkStore {
         for (const [tokenHash, link] of this.chatShareLinks) {
             if (link.ownerId === userId) this.chatShareLinks.delete(tokenHash);
         }
+        this.userSettings.delete(userId);
     }
 
     async deleteUserCredential(userId: string, credentialId: string): Promise<void> {
@@ -410,6 +413,23 @@ export class MemoryZkStore implements ZkStore {
             ...record,
             rev: existing ? existing.rev + 1 : 1,
             updatedAt: record.updatedAt,
+        }));
+        return existing ? 'updated' : 'created';
+    }
+
+    async getUserSettings(userId: string): Promise<UserSettingsRecord | null> {
+        const record = this.userSettings.get(userId);
+        return record ? clone(record) : null;
+    }
+
+    async putUserSettings(record: UserSettingsRecord, baseRev?: number | null): Promise<'created' | 'updated' | 'conflict'> {
+        const existing = this.userSettings.get(record.userId);
+        if (existing && baseRev != null && existing.rev !== baseRev) return 'conflict';
+        if (existing && baseRev == null) return 'conflict';
+        if (!existing && baseRev != null && baseRev !== 0) return 'conflict';
+        this.userSettings.set(record.userId, clone({
+            ...record,
+            rev: existing ? existing.rev + 1 : 1,
         }));
         return existing ? 'updated' : 'created';
     }
