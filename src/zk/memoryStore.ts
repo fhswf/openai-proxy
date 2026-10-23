@@ -4,6 +4,11 @@ import type {
     ChatRecord,
     ChatShareLinkRecord,
     ChatSummary,
+    GroupCatalogRecord,
+    GroupChatRecord,
+    GroupChatEventRecord,
+    GroupChatEventAppendResult,
+    NewGroupChatEvent,
     ZkAttachmentDownload,
     PendingChallengeRecord,
     UserCredentialRecord,
@@ -27,6 +32,9 @@ export class MemoryZkStore implements ZkStore {
     private envelopes = new Map<string, ChatEnvelopeRecord>();
     private attachments = new Map<string, Buffer>();
     private chatShareLinks = new Map<string, ChatShareLinkRecord>();
+    private groupCatalogs = new Map<string, GroupCatalogRecord>();
+    private groupChats = new Map<string, GroupChatRecord>();
+    private groupChatEvents = new Map<string, GroupChatEventRecord[]>();
 
     async init(): Promise<void> {
         // Nothing to initialise for the in-memory store.
@@ -172,9 +180,14 @@ export class MemoryZkStore implements ZkStore {
     }
 
     async listChatsForRecipient(recipientId: string): Promise<ChatSummary[]> {
-        const summaries: ChatSummary[] = [];
+        const summaries = new Map<string, ChatSummary>();
         for (const envelope of this.envelopes.values()) {
             if (envelope.recipient_id !== recipientId) {
+                continue;
+            }
+
+            const group = this.groupChats.get(envelope.chat_id);
+            if (group && !group.members.some(member => member.userId === recipientId)) {
                 continue;
             }
 
@@ -183,7 +196,7 @@ export class MemoryZkStore implements ZkStore {
                 continue;
             }
 
-            summaries.push({
+            summaries.set(chat.id, {
                 id: chat.id,
                 ownerId: chat.ownerId,
                 updatedAt: chat.updatedAt,
@@ -191,8 +204,19 @@ export class MemoryZkStore implements ZkStore {
             });
         }
 
-        summaries.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
-        return summaries;
+        for (const group of this.groupChats.values()) {
+            if (!group.members.some(member => member.userId === recipientId)) continue;
+            const chat = this.chats.get(group.chatId);
+            if (!chat) continue;
+            summaries.set(chat.id, {
+                id: chat.id,
+                ownerId: chat.ownerId,
+                updatedAt: group.updatedAt,
+                rev: chat.rev,
+            });
+        }
+
+        return [...summaries.values()].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
     }
 
     async getChat(id: string): Promise<ChatRecord | null> {
@@ -241,6 +265,8 @@ export class MemoryZkStore implements ZkStore {
 
     async deleteChat(id: string): Promise<void> {
         this.chats.delete(id);
+        this.groupChats.delete(id);
+        this.groupChatEvents.delete(id);
         for (const [key, envelope] of this.envelopes.entries()) {
             if (envelope.chat_id === id) {
                 this.envelopes.delete(key);
@@ -302,6 +328,23 @@ export class MemoryZkStore implements ZkStore {
     }
 
     async listEnvelopes(chatId: string): Promise<ChatEnvelopeRecord[]> {
+        const group = this.groupChats.get(chatId);
+        if (group) {
+            return group.envelopes
+                .filter(envelope => envelope.epoch === group.currentEpoch)
+                .map(envelope => ({
+                    chat_id: chatId,
+                    recipient_id: envelope.recipientId,
+                    envelope_algorithm: envelope.envelope_algorithm,
+                    ephemeral_public_key: envelope.ephemeral_public_key,
+                    wrapped_key: envelope.wrapped_key,
+                    wrapped_key_iv: envelope.wrapped_key_iv,
+                    is_owner: envelope.recipientId === group.ownerId,
+                    created_at: envelope.created_at,
+                    epoch: envelope.epoch,
+                }));
+        }
+
         const result: ChatEnvelopeRecord[] = [];
         for (const envelope of this.envelopes.values()) {
             if (envelope.chat_id === chatId) {
@@ -313,6 +356,23 @@ export class MemoryZkStore implements ZkStore {
     }
 
     async getEnvelope(chatId: string, recipientId: string): Promise<ChatEnvelopeRecord | null> {
+        const group = this.groupChats.get(chatId);
+        if (group) {
+            const envelope = group.envelopes.find(item =>
+                item.epoch === group.currentEpoch && item.recipientId === recipientId,
+            );
+            return envelope ? {
+                chat_id: chatId,
+                recipient_id: recipientId,
+                envelope_algorithm: envelope.envelope_algorithm,
+                ephemeral_public_key: envelope.ephemeral_public_key,
+                wrapped_key: envelope.wrapped_key,
+                wrapped_key_iv: envelope.wrapped_key_iv,
+                is_owner: recipientId === group.ownerId,
+                created_at: envelope.created_at,
+                epoch: envelope.epoch,
+            } : null;
+        }
         const record = this.envelopes.get(this.envelopeKey(chatId, recipientId));
         return record ? clone(record) : null;
     }
@@ -326,6 +386,110 @@ export class MemoryZkStore implements ZkStore {
     }
 
     async hasEnvelope(chatId: string, recipientId: string): Promise<boolean> {
+        const group = this.groupChats.get(chatId);
+        if (group) {
+            return group.members.some(member => member.userId === recipientId);
+        }
         return this.envelopes.has(this.envelopeKey(chatId, recipientId));
+    }
+
+    async getGroupCatalog(userId: string): Promise<GroupCatalogRecord | null> {
+        const record = this.groupCatalogs.get(userId);
+        return record ? clone(record) : null;
+    }
+
+    async putGroupCatalog(record: GroupCatalogRecord, baseRev?: number | null): Promise<'created' | 'updated' | 'conflict'> {
+        const existing = this.groupCatalogs.get(record.userId);
+        if (existing && baseRev != null && existing.rev !== baseRev) return 'conflict';
+        if (existing && baseRev == null) return 'conflict';
+        if (!existing && baseRev != null && baseRev !== 0) return 'conflict';
+        this.groupCatalogs.set(record.userId, clone({
+            ...record,
+            rev: existing ? existing.rev + 1 : 1,
+            updatedAt: record.updatedAt,
+        }));
+        return existing ? 'updated' : 'created';
+    }
+
+    async getGroupChat(chatId: string): Promise<GroupChatRecord | null> {
+        const record = this.groupChats.get(chatId);
+        return record ? clone(record) : null;
+    }
+
+    async createGroupChat(record: GroupChatRecord): Promise<'created' | 'exists' | 'not_found' | 'forbidden'> {
+        const chat = this.chats.get(record.chatId);
+        if (!chat) return 'not_found';
+        if (chat.ownerId !== record.ownerId) return 'forbidden';
+        if (this.groupChats.has(record.chatId)) return 'exists';
+        this.groupChats.set(record.chatId, clone(record));
+        return 'created';
+    }
+
+    async replaceGroupChatMembership(
+        chatId: string,
+        actorId: string,
+        expectedEpoch: number,
+        record: GroupChatRecord,
+    ): Promise<'updated' | 'not_found' | 'forbidden' | 'conflict'> {
+        const existing = this.groupChats.get(chatId);
+        if (!existing) return 'not_found';
+        if (existing.ownerId !== actorId) return 'forbidden';
+        if (existing.currentEpoch !== expectedEpoch || record.currentEpoch !== expectedEpoch + 1) return 'conflict';
+        this.groupChats.set(chatId, clone({
+            ...record,
+            chatId,
+            ownerId: existing.ownerId,
+            committedSequence: existing.committedSequence,
+            createdAt: existing.createdAt,
+        }));
+        return 'updated';
+    }
+
+    async hasGroupChatMembership(chatId: string, userId: string): Promise<boolean> {
+        return Boolean(this.groupChats.get(chatId)?.members.some(member => member.userId === userId));
+    }
+
+    async appendGroupChatEvent(event: NewGroupChatEvent): Promise<GroupChatEventAppendResult> {
+        const group = this.groupChats.get(event.chatId);
+        if (!group) return { status: 'not_found' };
+        if (!group.members.some(member => member.userId === event.actorId)) return { status: 'forbidden' };
+
+        const events = this.groupChatEvents.get(event.chatId) ?? [];
+        const existing = events.find(item => item.eventId === event.eventId);
+        if (existing) {
+            return existing.actorId === event.actorId
+                ? { status: 'existing', event: clone(existing) }
+                : { status: 'conflict' };
+        }
+        if (event.epoch !== group.currentEpoch) return { status: 'conflict' };
+
+        const stored: GroupChatEventRecord = {
+            ...event,
+            sequence: group.committedSequence + 1,
+        };
+        group.committedSequence = stored.sequence;
+        events.push(stored);
+        this.groupChatEvents.set(event.chatId, events);
+        group.updatedAt = event.createdAt;
+        return { status: 'created', event: clone(stored) };
+    }
+
+    async listGroupChatEvents(
+        chatId: string,
+        userId: string,
+        after: number,
+        limit: number,
+    ): Promise<GroupChatEventRecord[] | null> {
+        const group = this.groupChats.get(chatId);
+        if (!group?.members.some(member => member.userId === userId)) return null;
+        return clone((this.groupChatEvents.get(chatId) ?? [])
+            .filter(event => event.sequence > after && event.sequence <= group.committedSequence)
+            .slice(0, limit));
+    }
+
+    watchGroupChatEvents(_listener: (event: GroupChatEventRecord) => void): () => void {
+        // The development store is process-local, so the router publishes
+        // directly to its in-process event bus after each append.
+        return () => undefined;
     }
 }

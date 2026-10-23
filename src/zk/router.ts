@@ -4,15 +4,18 @@ import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { byteLength, randomBytes, sha256, toBase64Url } from './base64.ts';
 import { identityClaimsFromRequest, KeyAttestor } from './attestation.ts';
-import type { EnvelopeAlgorithm, UserKeyAlgorithm, ZkStore } from './types.ts';
+import type { GroupChatEpochEnvelope, GroupChatMemberRecord, EnvelopeAlgorithm, UserKeyAlgorithm, ZkStore } from './types.ts';
 import { verifyAssertion } from './webauthn.ts';
 import type { WebAuthnConfig } from './webauthn.ts';
+import type { GroupChatEventBus } from './groupChatEventBus.ts';
 
 const CHALLENGE_BYTES = 32;
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 const ASSERTION_TTL_MS = 15 * 60 * 1000;
 
 const MAX_CIPHERTEXT_BYTES = 5 * 1024 * 1024;
+const MAX_GROUP_CATALOG_BYTES = 2 * 1024 * 1024;
+const MAX_GROUP_EVENT_BYTES = 256 * 1024;
 const MAX_ATTACHMENT_BYTES = 100 * 1024 * 1024;
 const MAX_METADATA_BYTES = 64 * 1024;
 // Retain envelopes from the previous RSA-OAEP-4096 client (512 bytes).
@@ -24,6 +27,7 @@ const MAX_PUBLIC_KEY_BYTES = 2048;
 const MAX_ENCRYPTED_SK_BYTES = 16 * 1024;
 const MAX_CREDENTIAL_NAME_LENGTH = 80;
 const MAX_ID_LENGTH = 128;
+const MAX_GROUP_MEMBERS = 100;
 const CHAT_SHARE_LINK_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
@@ -195,10 +199,12 @@ export interface ZkRouterOptions {
     identityIssuer?: string;
     /** Rate limit for write endpoints, per authenticated user. */
     writeRateLimit?: { windowMs: number; max: number };
+    groupChatEventBus?: GroupChatEventBus;
 }
 
 export function createZkRouter(options: ZkRouterOptions): express.Router {
     const { store, webauthn } = options;
+    const groupChatEventBus = options.groupChatEventBus;
     const router = express.Router();
 
     const route = (handler: (req: express.Request, res: express.Response) => Promise<void> | void) =>
@@ -248,6 +254,7 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
     const resolveShareLink = async (tokenHash: string) => {
         const link = await store.getChatShareLink(tokenHash);
         if (!link || link.expiresAt.getTime() <= Date.now()) return null;
+        if (await store.getGroupChat(link.chatId)) return null;
         const chat = await store.getChat(link.chatId);
         if (!chat) return null;
         return { link, chat };
@@ -549,12 +556,341 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
 
     // --- Chats -----------------------------------------------------------
 
+    router.get('/group-catalog', route(async (req, res) => {
+        const userId = getUserId(req);
+        const catalog = await store.getGroupCatalog(userId);
+        if (!catalog) throw new ZkError(404, 'not_found', 'No saved group catalog');
+        res.json({
+            ciphertext: catalog.ciphertext,
+            iv: catalog.iv,
+            selfEnvelope: {
+                recipientId: userId,
+                envelopeAlgorithm: catalog.envelope.envelope_algorithm,
+                ephemeralPublicKey: catalog.envelope.ephemeral_public_key,
+                wrappedKey: catalog.envelope.wrapped_key,
+                wrappedKeyIv: catalog.envelope.wrapped_key_iv,
+            },
+            rev: catalog.rev,
+            updatedAt: catalog.updatedAt.toISOString(),
+        });
+    }));
+
+    router.put('/group-catalog', writeLimiter, route(async (req, res) => {
+        const userId = getUserId(req);
+        const userKeys = await store.getUserKeysByUserId(userId);
+        if (!userKeys) throw new ZkError(403, 'forbidden', 'Encrypted chat storage is not enabled');
+
+        const body = req.body ?? {};
+        const ciphertext = requireBase64(body.ciphertext, 'ciphertext', { min: 1, max: MAX_GROUP_CATALOG_BYTES });
+        const iv = requireBase64(body.iv, 'iv', { min: 12, max: 12 });
+        if (!body.selfEnvelope || typeof body.selfEnvelope !== 'object') {
+            throw new ZkError(400, 'invalid_payload', 'selfEnvelope is required');
+        }
+        if (body.selfEnvelope.recipientId !== userId) {
+            throw new ZkError(400, 'invalid_payload', 'selfEnvelope recipientId must match the caller');
+        }
+        const envelope = requireEnvelope(body.selfEnvelope, 'selfEnvelope');
+        if (envelope.envelopeAlgorithm !== envelopeAlgorithmForKey(userKeys.publicKeyAlgorithm)) {
+            throw new ZkError(400, 'invalid_payload', 'selfEnvelope algorithm does not match the registered public key');
+        }
+        const baseRev = body.baseRev == null ? null : Number(body.baseRev);
+        if (baseRev != null && (!Number.isSafeInteger(baseRev) || baseRev < 0)) {
+            throw new ZkError(400, 'invalid_payload', 'baseRev must be a non-negative integer');
+        }
+
+        const result = await store.putGroupCatalog({
+            userId,
+            ciphertext,
+            iv,
+            envelope: {
+                envelope_algorithm: envelope.envelopeAlgorithm,
+                ephemeral_public_key: envelope.ephemeralPublicKey,
+                wrapped_key: envelope.wrappedKey,
+                wrapped_key_iv: envelope.wrappedKeyIv,
+            },
+            rev: 0,
+            updatedAt: now(),
+        }, baseRev);
+        if (result === 'conflict') {
+            res.status(409).json({ error: { code: 'conflict', message: 'Group catalog changed on another device' } });
+            return;
+        }
+        const saved = await store.getGroupCatalog(userId);
+        res.status(result === 'created' ? 201 : 200).json({ rev: saved?.rev ?? 1 });
+    }));
+
+    router.post('/chats/:id/group', writeLimiter, route(async (req, res) => {
+        const userId = getUserId(req);
+        const chatId = requireId(req.params.id, 'id');
+        const chat = await store.getChat(chatId);
+        if (!chat) throw new ZkError(404, 'not_found', 'Chat not found');
+        if (chat.ownerId !== userId) throw new ZkError(403, 'forbidden', 'Only the owner can create a group chat');
+        if (await store.getGroupChat(chatId)) throw new ZkError(409, 'conflict', 'Chat is already a group chat');
+
+        const body = req.body ?? {};
+        const memberIds = body.members;
+        if (!Array.isArray(memberIds) || memberIds.length < 2 || memberIds.length > MAX_GROUP_MEMBERS) {
+            throw new ZkError(400, 'invalid_payload', `members must contain 2-${MAX_GROUP_MEMBERS} users`);
+        }
+        const ids = memberIds.map((value, index) => requireId(value, `members[${index}]`));
+        if (new Set(ids).size !== ids.length || !ids.includes(userId)) {
+            throw new ZkError(400, 'invalid_payload', 'members must be unique and include the chat owner');
+        }
+        if (!Array.isArray(body.envelopes) || body.envelopes.length !== ids.length) {
+            throw new ZkError(400, 'invalid_payload', 'An epoch 1 envelope is required for every member');
+        }
+
+        const envelopes: GroupChatEpochEnvelope[] = [];
+        const recipients = new Set<string>();
+        for (const [index, raw] of body.envelopes.entries()) {
+            if (!raw || typeof raw !== 'object') {
+                throw new ZkError(400, 'invalid_payload', `envelopes[${index}] must be an object`);
+            }
+            const recipientId = requireId(raw.recipientId, `envelopes[${index}].recipientId`);
+            if (!ids.includes(recipientId) || recipients.has(recipientId)) {
+                throw new ZkError(400, 'invalid_payload', 'Each member must have exactly one envelope');
+            }
+            const recipient = await store.getUserKeysByUserId(recipientId);
+            if (!recipient) throw new ZkError(404, 'not_found', `Group member ${recipientId} has no registered keys`);
+            const envelope = requireEnvelope(raw, `envelopes[${index}]`);
+            if (envelope.envelopeAlgorithm !== envelopeAlgorithmForKey(recipient.publicKeyAlgorithm)) {
+                throw new ZkError(400, 'invalid_payload', `Envelope algorithm does not match member ${recipientId}'s key`);
+            }
+            recipients.add(recipientId);
+            envelopes.push({
+                recipientId,
+                epoch: 1,
+                envelope_algorithm: envelope.envelopeAlgorithm,
+                ephemeral_public_key: envelope.ephemeralPublicKey,
+                wrapped_key: envelope.wrappedKey,
+                wrapped_key_iv: envelope.wrappedKeyIv,
+                created_at: now(),
+            });
+        }
+
+        const timestamp = now();
+        const record = {
+            chatId,
+            ownerId: userId,
+            currentEpoch: 1,
+            committedSequence: 0,
+            members: ids.map((memberId): GroupChatMemberRecord => ({
+                userId: memberId,
+                role: memberId === userId ? 'owner' : 'member',
+            })),
+            envelopes,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+        };
+        const result = await store.createGroupChat(record);
+        if (result === 'not_found') throw new ZkError(404, 'not_found', 'Chat not found');
+        if (result === 'forbidden') throw new ZkError(403, 'forbidden', 'Only the owner can create a group chat');
+        if (result === 'exists') throw new ZkError(409, 'conflict', 'Chat is already a group chat');
+        // A capability link created before conversion must not outlive the
+        // transition to member-controlled access.
+        await store.deleteChatShareLinksForChat(chatId);
+        res.status(201).json({ chatId, ownerId: userId, currentEpoch: 1, members: ids });
+    }));
+
+    router.get('/chats/:id/group', route(async (req, res) => {
+        const userId = getUserId(req);
+        const chatId = requireId(req.params.id, 'id');
+        const group = await store.getGroupChat(chatId);
+        if (!group) throw new ZkError(404, 'not_found', 'Group chat not found');
+        if (!group.members.some(member => member.userId === userId)) {
+            throw new ZkError(403, 'forbidden', 'No access to this group chat');
+        }
+        res.json({
+            chatId,
+            ownerId: group.ownerId,
+            currentEpoch: group.currentEpoch,
+            cursor: group.committedSequence,
+            members: group.members,
+            envelopes: group.envelopes
+                .filter(envelope => envelope.recipientId === userId)
+                .map(envelope => ({
+                    epoch: envelope.epoch,
+                    envelopeAlgorithm: envelope.envelope_algorithm,
+                    ephemeralPublicKey: envelope.ephemeral_public_key,
+                    wrappedKey: envelope.wrapped_key,
+                    wrappedKeyIv: envelope.wrapped_key_iv,
+                })),
+        });
+    }));
+
+    router.put('/chats/:id/group/membership', writeLimiter, route(async (req, res) => {
+        const userId = getUserId(req);
+        const chatId = requireId(req.params.id, 'id');
+        const current = await store.getGroupChat(chatId);
+        if (!current) throw new ZkError(404, 'not_found', 'Group chat not found');
+        if (current.ownerId !== userId) throw new ZkError(403, 'forbidden', 'Only the owner can change group membership');
+
+        const body = req.body ?? {};
+        const baseEpoch = Number(body.baseEpoch);
+        if (!Number.isSafeInteger(baseEpoch) || baseEpoch < 1) {
+            throw new ZkError(400, 'invalid_payload', 'baseEpoch must be a positive integer');
+        }
+        if (baseEpoch !== current.currentEpoch) {
+            res.status(409).json({ currentEpoch: current.currentEpoch });
+            return;
+        }
+        if (baseEpoch >= Number.MAX_SAFE_INTEGER) {
+            throw new ZkError(409, 'conflict', 'Group key epoch limit reached');
+        }
+
+        const rawMembers = body.members;
+        if (!Array.isArray(rawMembers) || rawMembers.length < 1 || rawMembers.length > MAX_GROUP_MEMBERS) {
+            throw new ZkError(400, 'invalid_payload', `members must contain 1-${MAX_GROUP_MEMBERS} users`);
+        }
+        const memberIds = rawMembers.map((value, index) => requireId(value, `members[${index}]`));
+        if (new Set(memberIds).size !== memberIds.length || !memberIds.includes(current.ownerId)) {
+            throw new ZkError(400, 'invalid_payload', 'members must be unique and retain the chat owner');
+        }
+        if (!Array.isArray(body.envelopes)) {
+            throw new ZkError(400, 'invalid_payload', 'envelopes must be an array');
+        }
+
+        const nextEpoch = baseEpoch + 1;
+        const parsed: GroupChatEpochEnvelope[] = [];
+        const seen = new Set<string>();
+        const hasNextEpochEnvelope = new Set<string>();
+        for (const [index, raw] of body.envelopes.entries()) {
+            if (!raw || typeof raw !== 'object') {
+                throw new ZkError(400, 'invalid_payload', `envelopes[${index}] must be an object`);
+            }
+            const recipientId = requireId(raw.recipientId, `envelopes[${index}].recipientId`);
+            const epoch = Number(raw.epoch);
+            if (!memberIds.includes(recipientId)) {
+                throw new ZkError(400, 'invalid_payload', 'Envelopes may only be supplied for active members');
+            }
+            if (!Number.isSafeInteger(epoch) || epoch < 1 || epoch > nextEpoch) {
+                throw new ZkError(400, 'invalid_payload', 'Envelope epoch is invalid');
+            }
+            const key = `${recipientId}\u0000${epoch}`;
+            if (seen.has(key)) throw new ZkError(400, 'invalid_payload', 'Duplicate member epoch envelope');
+            const recipient = await store.getUserKeysByUserId(recipientId);
+            if (!recipient) throw new ZkError(404, 'not_found', `Group member ${recipientId} has no registered keys`);
+            const envelope = requireEnvelope(raw, `envelopes[${index}]`);
+            if (envelope.envelopeAlgorithm !== envelopeAlgorithmForKey(recipient.publicKeyAlgorithm)) {
+                throw new ZkError(400, 'invalid_payload', `Envelope algorithm does not match member ${recipientId}'s key`);
+            }
+            seen.add(key);
+            if (epoch === nextEpoch) hasNextEpochEnvelope.add(recipientId);
+            parsed.push({
+                recipientId,
+                epoch,
+                envelope_algorithm: envelope.envelopeAlgorithm,
+                ephemeral_public_key: envelope.ephemeralPublicKey,
+                wrapped_key: envelope.wrappedKey,
+                wrapped_key_iv: envelope.wrappedKeyIv,
+                created_at: now(),
+            });
+        }
+        if (memberIds.some(memberId => !hasNextEpochEnvelope.has(memberId))) {
+            throw new ZkError(400, 'invalid_payload', 'A new epoch envelope is required for every active member');
+        }
+
+        const envelopeMap = new Map(current.envelopes.map(envelope => [
+            `${envelope.recipientId}\u0000${envelope.epoch}`,
+            envelope,
+        ]));
+        for (const envelope of parsed) {
+            envelopeMap.set(`${envelope.recipientId}\u0000${envelope.epoch}`, envelope);
+        }
+        const timestamp = now();
+        const record = {
+            ...current,
+            currentEpoch: nextEpoch,
+            members: memberIds.map((memberId): GroupChatMemberRecord => ({
+                userId: memberId,
+                role: memberId === current.ownerId ? 'owner' : 'member',
+            })),
+            envelopes: [...envelopeMap.values()],
+            updatedAt: timestamp,
+        };
+        const result = await store.replaceGroupChatMembership(chatId, userId, baseEpoch, record);
+        if (result === 'not_found') throw new ZkError(404, 'not_found', 'Group chat not found');
+        if (result === 'forbidden') throw new ZkError(403, 'forbidden', 'Only the owner can change group membership');
+        if (result === 'conflict') {
+            const latest = await store.getGroupChat(chatId);
+            res.status(409).json({ currentEpoch: latest?.currentEpoch ?? null });
+            return;
+        }
+        res.json({ chatId, currentEpoch: nextEpoch, members: memberIds });
+    }));
+
+    router.get('/chats/:id/events', route(async (req, res) => {
+        const userId = getUserId(req);
+        const chatId = requireId(req.params.id, 'id');
+        const after = req.query.after == null ? 0 : Number(req.query.after);
+        const limit = req.query.limit == null ? 20 : Number(req.query.limit);
+        if (!Number.isSafeInteger(after) || after < 0) {
+            throw new ZkError(400, 'invalid_payload', 'after must be a non-negative integer cursor');
+        }
+        if (!Number.isSafeInteger(limit) || limit < 1 || limit > 20) {
+            throw new ZkError(400, 'invalid_payload', 'limit must be an integer from 1 to 20');
+        }
+        const events = await store.listGroupChatEvents(chatId, userId, after, limit);
+        if (events === null) {
+            if (!(await store.getGroupChat(chatId))) throw new ZkError(404, 'not_found', 'Group chat not found');
+            throw new ZkError(403, 'forbidden', 'No access to this group chat');
+        }
+        res.json({ events: events.map(event => ({
+            chatId: event.chatId,
+            sequence: event.sequence,
+            eventId: event.eventId,
+            actorId: event.actorId,
+            epoch: event.epoch,
+            ciphertext: event.ciphertext,
+            iv: event.iv,
+            createdAt: event.createdAt.toISOString(),
+        })), nextCursor: events.at(-1)?.sequence ?? after, hasMore: events.length === limit });
+    }));
+
+    router.post('/chats/:id/events', writeLimiter, route(async (req, res) => {
+        const userId = getUserId(req);
+        const chatId = requireId(req.params.id, 'id');
+        const body = req.body ?? {};
+        const eventId = requireId(body.eventId, 'eventId');
+        const epoch = Number(body.epoch);
+        if (!Number.isSafeInteger(epoch) || epoch < 1) {
+            throw new ZkError(400, 'invalid_payload', 'epoch must be a positive integer');
+        }
+        const ciphertext = requireBase64(body.ciphertext, 'ciphertext', { min: 1, max: MAX_GROUP_EVENT_BYTES });
+        const iv = requireBase64(body.iv, 'iv', { min: 12, max: 12 });
+        const result = await store.appendGroupChatEvent({
+            chatId,
+            eventId,
+            actorId: userId,
+            epoch,
+            ciphertext,
+            iv,
+            createdAt: now(),
+        });
+        if (result.status === 'not_found') throw new ZkError(404, 'not_found', 'Group chat not found');
+        if (result.status === 'forbidden') throw new ZkError(403, 'forbidden', 'No access to this group chat');
+        if (result.status === 'conflict') {
+            throw new ZkError(409, 'conflict', 'Group membership or key epoch changed');
+        }
+        groupChatEventBus?.publish(result.event);
+        res.status(result.status === 'created' ? 201 : 200).json({
+            chatId,
+            eventId,
+            sequence: result.event.sequence,
+            duplicate: result.status === 'existing',
+            createdAt: result.event.createdAt.toISOString(),
+        });
+    }));
+
     // A link token is a revocable, seven-day capability. Store only its hash;
     // the client keeps the decryption key in the URL fragment, which browsers
     // never send to this server.
     router.post('/chats/:id/share-link', writeLimiter, route(async (req, res) => {
         const userId = getUserId(req);
         const id = requireId(req.params.id, 'id');
+        if (await store.getGroupChat(id)) {
+            throw new ZkError(409, 'conflict', 'Group chats use member invitations instead of share links');
+        }
         const chat = await store.getChat(id);
         if (!chat) throw new ZkError(404, 'not_found', 'Chat not found');
         if (chat.ownerId !== userId) {
@@ -575,6 +911,9 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
     router.post('/chats/:id/share-link/revoke', writeLimiter, route(async (req, res) => {
         const userId = getUserId(req);
         const id = requireId(req.params.id, 'id');
+        if (await store.getGroupChat(id)) {
+            throw new ZkError(409, 'conflict', 'Group chats do not support share links');
+        }
         const tokenHash = requireShareTokenHash((req.body ?? {}).token);
         const chat = await store.getChat(id);
         if (!chat) throw new ZkError(404, 'not_found', 'Chat not found');
@@ -642,6 +981,7 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
             throw new ZkError(403, 'forbidden', 'No access to this chat');
         }
 
+        const group = await store.getGroupChat(id);
         const envelopes = await store.listEnvelopes(id);
         res.json({
             id: chat.id,
@@ -651,13 +991,16 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
             iv: chat.iv,
             metadataCt: chat.metadataCt,
             metadataIv: chat.metadataIv,
-            envelopes: envelopes.map(envelope => ({
-                recipientId: envelope.recipient_id,
-                envelopeAlgorithm: envelope.envelope_algorithm,
-                ephemeralPublicKey: envelope.ephemeral_public_key,
-                wrappedKey: envelope.wrapped_key,
-                wrappedKeyIv: envelope.wrapped_key_iv,
-            })),
+            envelopes: envelopes
+                .filter(envelope => !group || envelope.recipient_id === userId)
+                .map(envelope => ({
+                    recipientId: envelope.recipient_id,
+                    envelopeAlgorithm: envelope.envelope_algorithm,
+                    ephemeralPublicKey: envelope.ephemeral_public_key,
+                    wrappedKey: envelope.wrapped_key,
+                    wrappedKeyIv: envelope.wrapped_key_iv,
+                    ...(envelope.epoch == null ? {} : { epoch: envelope.epoch }),
+                })),
         });
     }));
 
@@ -701,7 +1044,8 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
         if (!chat) {
             throw new ZkError(404, 'not_found', 'Chat not found');
         }
-        if (chat.ownerId !== userId) {
+        const isGroupMember = await store.hasGroupChatMembership(id, userId);
+        if (chat.ownerId !== userId && !isGroupMember) {
             throw new ZkError(403, 'forbidden', 'Only the owner can upload attachments');
         }
         if (!req.is('application/octet-stream')) {
@@ -738,7 +1082,8 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
         if (!chat) {
             throw new ZkError(404, 'not_found', 'Chat not found');
         }
-        if (chat.ownerId !== userId) {
+        const isGroupMember = await store.hasGroupChatMembership(id, userId);
+        if (chat.ownerId !== userId && !isGroupMember) {
             throw new ZkError(403, 'forbidden', 'Only the owner can delete attachments');
         }
 
@@ -749,6 +1094,9 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
     router.put('/chats/:id', writeLimiter, route(async (req, res) => {
         const userId = getUserId(req);
         const id = requireId(req.params.id, 'id');
+        if (await store.getGroupChat(id)) {
+            throw new ZkError(409, 'conflict', 'Use the encrypted group event API to update this chat');
+        }
         const body = req.body ?? {};
 
         const ciphertext = requireBase64(body.ciphertext, 'ciphertext', { min: 1, max: MAX_CIPHERTEXT_BYTES });
@@ -820,6 +1168,9 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
     router.post('/chats/:id/share', writeLimiter, route(async (req, res) => {
         const userId = getUserId(req);
         const id = requireId(req.params.id, 'id');
+        if (await store.getGroupChat(id)) {
+            throw new ZkError(409, 'conflict', 'Use the group membership endpoint to share a group chat');
+        }
         const body = req.body ?? {};
 
         const recipientId = requireId(body.recipientId, 'recipientId');
@@ -859,6 +1210,9 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
     router.post('/chats/:id/revoke', writeLimiter, route(async (req, res) => {
         const userId = getUserId(req);
         const id = requireId(req.params.id, 'id');
+        if (await store.getGroupChat(id)) {
+            throw new ZkError(409, 'conflict', 'Use the group membership endpoint to revoke group chat access');
+        }
         const recipientId = requireId((req.body ?? {}).recipientId, 'recipientId');
 
         const chat = await store.getChat(id);

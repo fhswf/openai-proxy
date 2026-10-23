@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import { createLogger, format, transports } from 'winston';
+import { createServer } from 'node:http';
 import express from 'express';
 import proxy from 'express-http-proxy';
 import rateLimit from 'express-rate-limit';
@@ -23,6 +24,8 @@ import { createZkRouter } from './zk/router.ts';
 import { MemoryZkStore } from './zk/memoryStore.ts';
 import { MongoZkStore } from './zk/mongoStore.ts';
 import { KeyAttestor } from './zk/attestation.ts';
+import { GroupChatEventBus } from './zk/groupChatEventBus.ts';
+import { attachZkWebSocketServer } from './zk/websocket.ts';
 import type { ZkStore } from './zk/types.ts';
 import { createOpenApiDocument } from './openapi.ts';
 
@@ -693,6 +696,12 @@ const createZkStore = (): ZkStore => {
 const resolveRpId = (): string | undefined => WEBAUTHN_RP_ID;
 
 const zkStore = createZkStore();
+const zkGroupChatEventBus = new GroupChatEventBus();
+let stopZkEventRelay: () => void = () => {};
+const zkWriteRateLimit = {
+    windowMs: 60 * 1000,
+    max: Number.parseInt(process.env.ZK_WRITE_RATE_LIMIT || '120'),
+};
 const zkAttestor = KeyAttestor.fromEnvironment();
 if (zkAttestor) {
     logger.info('zero-knowledge key identity attestations enabled');
@@ -708,16 +717,38 @@ const zkRouter = createZkRouter({
         rpId: resolveRpId(),
         origins: WEBAUTHN_ORIGINS,
     },
-    writeRateLimit: {
-        windowMs: 60 * 1000,
-        max: Number.parseInt(process.env.ZK_WRITE_RATE_LIMIT || '120'),
-    },
+    writeRateLimit: zkWriteRateLimit,
+    groupChatEventBus: zkGroupChatEventBus,
 });
 app.use(`${PREFIX}/zk`, zkRouter);
 // The production ingress strips its public /api prefix before forwarding.
 // API_PREFIX is /v1 there for OpenAI proxying, so ZK requests arrive as /zk/...
 // and need this mount in addition to the prefixed mount used in local setups.
 app.use('/zk', zkRouter);
+
+const server = createServer(app);
+const stopZkWebSocketServer = attachZkWebSocketServer(server, {
+    store: zkStore,
+    eventBus: zkGroupChatEventBus,
+    allowedOrigins: CORS_ORIGINS,
+    writeRateLimit: zkWriteRateLimit,
+    verifyToken: token => new Promise(resolve => {
+        jwt.verify(token, getSigningKey, {
+            algorithms: ['RS256'],
+            ...(ISSUER ? { issuer: ISSUER } : {}),
+        }, (error, decoded) => {
+            if (error || !decoded || typeof decoded === 'string' || typeof decoded.sub !== 'string') {
+                resolve(null);
+                return;
+            }
+            resolve(decoded.sub);
+        });
+    }),
+});
+server.on('close', () => {
+    stopZkEventRelay();
+    stopZkWebSocketServer();
+});
 
 
 app.use(limiter);
@@ -878,11 +909,12 @@ try {
         await mongo_connect();
         await zkStore.init();
     }
+    stopZkEventRelay = zkStore.watchGroupChatEvents(event => zkGroupChatEventBus.publish(event));
     if (!process.env.IGNORE_AUTH) {
         client = await initClient();
     }
     const port = Number.parseInt(process.env.PORT || '3000', 10);
-    app.listen(port, () => {
+    server.listen(port, () => {
         logger.debug(`Proxy server is running on port ${port}`);
     });
 }

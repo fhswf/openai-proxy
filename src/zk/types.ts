@@ -73,7 +73,82 @@ export interface ChatEnvelopeRecord {
     wrapped_key_iv: string | null;
     is_owner: boolean;
     created_at: Date;
+    epoch?: number;
 }
+
+export interface GroupCatalogEnvelope {
+    envelope_algorithm: EnvelopeAlgorithm;
+    ephemeral_public_key: string | null;
+    wrapped_key: string;
+    wrapped_key_iv: string | null;
+}
+
+export interface GroupCatalogRecord {
+    userId: string;
+    ciphertext: string;
+    iv: string;
+    envelope: GroupCatalogEnvelope;
+    rev: number;
+    updatedAt: Date;
+}
+
+export type GroupChatRole = 'owner' | 'member';
+
+export interface GroupChatMemberRecord {
+    userId: string;
+    role: GroupChatRole;
+}
+
+export interface GroupChatEpochEnvelope {
+    recipientId: string;
+    epoch: number;
+    envelope_algorithm: EnvelopeAlgorithm;
+    ephemeral_public_key: string | null;
+    wrapped_key: string;
+    wrapped_key_iv: string | null;
+    created_at: Date;
+}
+
+export interface GroupChatRecord {
+    chatId: string;
+    ownerId: string;
+    currentEpoch: number;
+    committedSequence: number;
+    members: GroupChatMemberRecord[];
+    /** Historical envelopes are retained so authorized new members may be granted history. */
+    envelopes: GroupChatEpochEnvelope[];
+    createdAt: Date;
+    updatedAt: Date;
+}
+
+export interface GroupChatEventRecord {
+    chatId: string;
+    sequence: number;
+    eventId: string;
+    actorId: string;
+    epoch: number;
+    ciphertext: string;
+    iv: string;
+    createdAt: Date;
+}
+
+export type GroupChatEventListener = (event: GroupChatEventRecord) => void;
+
+export interface NewGroupChatEvent {
+    chatId: string;
+    eventId: string;
+    actorId: string;
+    epoch: number;
+    ciphertext: string;
+    iv: string;
+    createdAt: Date;
+}
+
+export type GroupChatEventAppendResult =
+    | { status: 'created' | 'existing'; event: GroupChatEventRecord }
+    | { status: 'not_found' }
+    | { status: 'forbidden' }
+    | { status: 'conflict' };
 
 export interface PendingChallengeRecord {
     challenge: string;
@@ -138,5 +213,26 @@ export interface ZkStore {
     upsertEnvelope(record: ChatEnvelopeRecord): Promise<void>;
     deleteEnvelope(chatId: string, recipientId: string): Promise<void>;
     hasEnvelope(chatId: string, recipientId: string): Promise<boolean>;
+
+    getGroupCatalog(userId: string): Promise<GroupCatalogRecord | null>;
+    putGroupCatalog(record: GroupCatalogRecord, baseRev?: number | null): Promise<'created' | 'updated' | 'conflict'>;
+
+    getGroupChat(chatId: string): Promise<GroupChatRecord | null>;
+    createGroupChat(record: GroupChatRecord): Promise<'created' | 'exists' | 'not_found' | 'forbidden'>;
+    replaceGroupChatMembership(
+        chatId: string,
+        actorId: string,
+        expectedEpoch: number,
+        record: GroupChatRecord,
+    ): Promise<'updated' | 'not_found' | 'forbidden' | 'conflict'>;
+    hasGroupChatMembership(chatId: string, userId: string): Promise<boolean>;
+    appendGroupChatEvent(event: NewGroupChatEvent): Promise<GroupChatEventAppendResult>;
+    listGroupChatEvents(
+        chatId: string,
+        userId: string,
+        after: number,
+        limit: number,
+    ): Promise<GroupChatEventRecord[] | null>;
+    watchGroupChatEvents(listener: GroupChatEventListener): () => void;
 }
 
