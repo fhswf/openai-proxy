@@ -87,6 +87,21 @@ spec:
                 configMapKeyRef:
                   key: oidc.post_logout_redirect_uri
                   name: proxy-config
+            - name: ZK_ATTESTATION_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: ZK_ATTESTATION_PRIVATE_KEY
+                  name: proxy-zk-attestation
+            - name: ZK_ATTESTATION_ISSUER
+              valueFrom:
+                secretKeyRef:
+                  key: ZK_ATTESTATION_ISSUER
+                  name: proxy-zk-attestation
+            - name: ZK_ATTESTATION_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  key: ZK_ATTESTATION_KEY_ID
+                  name: proxy-zk-attestation
           livenessProbe:
             httpGet:
               path: /ip
