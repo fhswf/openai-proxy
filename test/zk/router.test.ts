@@ -7,7 +7,9 @@ import { MemoryZkStore } from '../../src/zk/memoryStore.ts';
 import { createAssertion, createCredential, fakeCiphertext } from './helpers.ts';
 
 const RP_ID = 'vault.example.org';
-const ORIGIN = 'https://app.example.org';
+const ORIGIN = 'https://app.vault.example.org';
+const SECOND_RP_ID = 'second.example.net';
+const SECOND_ORIGIN = `https://${SECOND_RP_ID}`;
 
 // Credential ids must be canonical base64url, matching what a browser produces.
 const credId = (value: string) => Buffer.from(value, 'utf8').toString('base64url');
@@ -29,7 +31,7 @@ function startServer(asUser: (req: express.Request) => string | null): Promise<T
     });
     app.use('/api/zk', createZkRouter({
         store: new MemoryZkStore(),
-        webauthn: { rpId: RP_ID, origins: [ORIGIN] },
+        webauthn: { rpId: RP_ID, origins: [ORIGIN, SECOND_ORIGIN] },
         writeRateLimit: { windowMs: 60_000, max: 10_000 },
     }));
     app.use((err, _req, res, _next) => {
@@ -159,6 +161,53 @@ describe('zk router', () => {
         assert.equal(publicKey.status, 200);
         assert.equal(publicKey.body.publicKey, fakeCiphertext(128));
         assert.equal(publicKey.body.encryptedSk, undefined);
+    });
+
+    it('returns only credentials belonging to the requested RP ID', async () => {
+        const firstCredentialId = credId('cred-domain-one');
+        await registerUser('domain-user', firstCredentialId);
+
+        const secondCredential = createCredential();
+        const challenge = await call('POST', '/api/zk/keys/registration-challenge', {
+            user: 'domain-user',
+            body: { rpId: SECOND_RP_ID },
+        });
+        assert.equal(challenge.status, 200);
+
+        const secondCredentialId = credId('cred-domain-two');
+        const registration = await call('POST', '/api/zk/keys', {
+            user: 'domain-user',
+            body: {
+                credentialId: secondCredentialId,
+                rpId: SECOND_RP_ID,
+                credentialPublicKey: secondCredential.publicKey,
+                publicKey: fakeCiphertext(128),
+                publicKeyAlgorithm: 'RSA-OAEP-SHA256',
+                encryptedSk: fakeCiphertext(128),
+                encryptedSkIv: fakeCiphertext(12),
+                challenge: challenge.body.challenge,
+            },
+        });
+        assert.equal(registration.status, 201);
+
+        const firstSite = await call('GET', `/api/zk/keys/me?rpId=${RP_ID}`, {
+            user: 'domain-user',
+        });
+        assert.equal(firstSite.status, 200);
+        assert.deepEqual(
+            firstSite.body.credentials.map((item: { credentialId: string }) => item.credentialId),
+            [firstCredentialId],
+        );
+
+        const secondSite = await call('GET', `/api/zk/keys/me?rpId=${SECOND_RP_ID}`, {
+            user: 'domain-user',
+        });
+        assert.equal(secondSite.status, 200);
+        assert.deepEqual(
+            secondSite.body.credentials.map((item: { credentialId: string }) => item.credentialId),
+            [secondCredentialId],
+        );
+        assert.equal(secondSite.body.publicKey, firstSite.body.publicKey);
     });
 
     it('rejects a replayed or mismatched assertion challenge', async () => {

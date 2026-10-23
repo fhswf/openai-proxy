@@ -5,7 +5,7 @@ import { sha256, toBase64Url } from '../../src/zk/base64.ts';
 import { createAssertion, createCredential } from './helpers.ts';
 
 const RP_ID = 'vault.example.org';
-const ORIGIN = 'https://app.example.org';
+const ORIGIN = 'https://app.vault.example.org';
 const CONFIG = { rpId: RP_ID, origins: [ORIGIN] };
 
 describe('webauthn', () => {

@@ -246,6 +246,58 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
 
     const now = () => new Date();
 
+    const requestRpId = (req: express.Request, requested?: unknown): string => {
+        const claimedRpId = typeof requested === 'string' && requested.length > 0
+            ? requested
+            : undefined;
+        const requestSource = req.get('origin') ?? req.get('referer');
+        let requestOrigin: URL | null = null;
+        if (requestSource) {
+            try {
+                requestOrigin = new URL(requestSource);
+            } catch {
+                throw new ZkError(400, 'invalid_origin', 'Invalid client origin');
+            }
+            if (!webauthn.origins.includes(requestOrigin.origin)) {
+                throw new ZkError(403, 'origin_not_allowed', 'Client origin is not allowed');
+            }
+        }
+
+        const fallbackOrigin = webauthn.origins[0];
+        if (!claimedRpId && !requestOrigin && !webauthn.rpId && !fallbackOrigin) {
+            throw new ZkError(503, 'webauthn_unavailable', 'No WebAuthn client origins are configured');
+        }
+        const rpId = claimedRpId ?? requestOrigin?.hostname ?? webauthn.rpId ??
+            new URL(fallbackOrigin!).hostname;
+        if (!/^[a-z0-9.-]+$/i.test(rpId) || rpId.startsWith('.') || rpId.endsWith('.')) {
+            throw new ZkError(400, 'invalid_payload', 'Invalid WebAuthn RP ID');
+        }
+        if (requestOrigin && requestOrigin.hostname !== rpId &&
+            !requestOrigin.hostname.endsWith(`.${rpId}`)) {
+            throw new ZkError(403, 'rp_id_mismatch', 'RP ID does not match the client origin');
+        }
+        const allowedForRpId = webauthn.origins.some((origin) => {
+            const hostname = new URL(origin).hostname;
+            return hostname === rpId || hostname.endsWith(`.${rpId}`);
+        });
+        if (!allowedForRpId) {
+            throw new ZkError(403, 'rp_id_mismatch', 'RP ID is not configured for an allowed client');
+        }
+        return rpId;
+    };
+
+    const credentialMatchesRpId = (credentialRpId: string | null | undefined, rpId: string) =>
+        Boolean(credentialRpId && (rpId === credentialRpId || rpId.endsWith(`.${credentialRpId}`)));
+
+    const effectiveCredentialRpId = (credentialRpId: string | null | undefined, rpId: string) => {
+        if (credentialRpId) return credentialRpId;
+        const configuredRpId = webauthn.rpId;
+        if (configuredRpId && (rpId === configuredRpId || rpId.endsWith(`.${configuredRpId}`))) {
+            return configuredRpId;
+        }
+        return rpId;
+    };
+
     const requireShareTokenHash = (value: unknown): string => {
         const token = requireBase64(value, 'token', { min: 32, max: 32 });
         return sha256(Buffer.from(token, 'base64url')).toString('hex');
@@ -264,6 +316,7 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
         kind: 'registration' | 'assertion',
         credentialId: string | null,
         userId: string | null,
+        rpId?: string,
     ): Promise<string> => {
         const challenge = toBase64Url(randomBytes(CHALLENGE_BYTES));
         await store.saveChallenge({
@@ -271,6 +324,7 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
             kind,
             credentialId,
             userId,
+            rpId: rpId ?? null,
             expiresAt: new Date(Date.now() + CHALLENGE_TTL_MS),
         });
         return challenge;
@@ -278,14 +332,16 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
 
     // --- User keys -------------------------------------------------------
 
-    router.post('/keys/registration-challenge', writeLimiter, route(async (_req, res) => {
-        const challenge = await issueChallenge('registration', null, null);
+    router.post('/keys/registration-challenge', writeLimiter, route(async (req, res) => {
+        const rpId = requestRpId(req, req.body?.rpId);
+        const challenge = await issueChallenge('registration', null, null, rpId);
         res.json({ challenge });
     }));
 
     router.post('/keys', writeLimiter, route(async (req, res) => {
         const userId = getUserId(req);
         const body = req.body ?? {};
+        const rpId = requestRpId(req, body.rpId);
         const includeIdentityProfile = requireIdentityProfileDisclosure(body.identityDisclosure);
         const credentialName = requireCredentialName(body.credentialName);
 
@@ -298,7 +354,7 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
         const challenge = requireBase64(body.challenge, 'challenge', { min: 1 });
 
         const pending = await store.takeChallenge(challenge);
-        if (!pending || pending.kind !== 'registration') {
+        if (!pending || pending.kind !== 'registration' || pending.rpId !== rpId) {
             throw new ZkError(400, 'invalid_payload', 'Invalid or expired challenge');
         }
 
@@ -316,6 +372,7 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
         const credential = {
             credentialId,
             name: credentialName,
+            rpId,
             credentialPublicKey,
             encryptedSk,
             encryptedSkIv,
@@ -350,14 +407,21 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
     router.post('/keys/assertion-challenge', writeLimiter, route(async (req, res) => {
         const userId = getUserId(req);
         const body = req.body ?? {};
-        const credentialId = requireBase64(body.credentialId, 'credentialId', { min: 1, max: MAX_CREDENTIAL_ID_BYTES });
+        const rpId = requestRpId(req, body.rpId);
+        const credentialId = body.credentialId == null
+            ? null
+            : requireBase64(body.credentialId, 'credentialId', { min: 1, max: MAX_CREDENTIAL_ID_BYTES });
 
-        const registeredCredential = await store.getUserCredentialById(credentialId);
-        if (!registeredCredential || registeredCredential.userKeys.userId !== userId) {
-            throw new ZkError(404, 'not_found', 'Unknown credential');
+        if (credentialId) {
+            const registeredCredential = await store.getUserCredentialById(credentialId);
+            if (!registeredCredential || registeredCredential.userKeys.userId !== userId ||
+                (registeredCredential.credential.rpId &&
+                    !credentialMatchesRpId(registeredCredential.credential.rpId, rpId))) {
+                throw new ZkError(404, 'not_found', 'Unknown credential');
+            }
         }
 
-        const challenge = await issueChallenge('assertion', credentialId, userId);
+        const challenge = await issueChallenge('assertion', credentialId, userId, rpId);
         res.json({ challenge });
     }));
 
@@ -370,38 +434,45 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
         const authenticatorData = requireBase64(body.authenticatorData, 'authenticatorData', { min: 37 });
         const clientDataJSON = requireBase64(body.clientDataJSON, 'clientDataJSON', { min: 1 });
         const signature = requireBase64(body.signature, 'signature', { min: 1 });
+        const rpId = requestRpId(req, body.rpId);
 
         const pending = await store.takeChallenge(challenge);
         if (!pending || pending.kind !== 'assertion' || pending.userId !== userId) {
             throw new ZkError(400, 'invalid_payload', 'Invalid or expired challenge');
         }
 
-        if (pending.credentialId !== credentialId) {
+        if ((pending.credentialId && pending.credentialId !== credentialId) || pending.rpId !== rpId) {
             throw new ZkError(400, 'invalid_payload', 'Challenge is bound to a different credential');
         }
 
         const registeredCredential = await store.getUserCredentialById(credentialId);
-        if (!registeredCredential || registeredCredential.userKeys.userId !== userId) {
+        if (!registeredCredential || registeredCredential.userKeys.userId !== userId ||
+            (registeredCredential.credential.rpId &&
+                !credentialMatchesRpId(registeredCredential.credential.rpId, rpId))) {
             throw new ZkError(404, 'not_found', 'No registered keys for this user');
         }
+
+        const credentialRpId = effectiveCredentialRpId(registeredCredential.credential.rpId, rpId);
 
         const verdict = verifyAssertion(
             { credentialId, authenticatorData, clientDataJSON, signature },
             challenge,
             registeredCredential.credential.credentialPublicKey,
             webauthn,
+            credentialRpId,
         );
 
         if (!verdict.ok) {
             throw new ZkError(401, 'unauthenticated', `Assertion rejected: ${verdict.reason}`);
         }
 
-        await store.markAsserted(userId, credentialId, now());
+        await store.markAsserted(userId, credentialId, now(), credentialRpId);
         res.status(204).end();
     }));
 
     router.get('/keys/me', route(async (req, res) => {
         const userId = getUserId(req);
+        const rpId = requestRpId(req, req.query.rpId);
         const record = await store.getUserKeysByUserId(userId);
         if (!record) {
             throw new ZkError(404, 'not_found', 'No keys registered for this user');
@@ -411,20 +482,24 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
         // device. Only the wrapped private key for the most recently asserted
         // credential is released, and only for a short time.
         const timestamp = Date.now();
-        const recentlyAsserted = record.credentials
+        const domainCredentials = record.credentials.filter(credential =>
+            credentialMatchesRpId(credential.rpId, rpId));
+        const recentlyAsserted = domainCredentials
             .filter(credential => credential.assertedAt && timestamp - credential.assertedAt.getTime() <= ASSERTION_TTL_MS)
             .sort((a, b) => (b.assertedAt?.getTime() ?? 0) - (a.assertedAt?.getTime() ?? 0))[0];
-        const selectedCredential = recentlyAsserted ?? record.credentials[0];
+        const selectedCredential = recentlyAsserted ?? domainCredentials[0];
 
         res.json({
             userId: record.userId,
             credentialId: selectedCredential?.credentialId ?? null,
             credentialName: selectedCredential?.name ?? null,
-            credentials: record.credentials.map(credential => ({
+            credentials: domainCredentials.map(credential => ({
                 credentialId: credential.credentialId,
                 name: credential.name,
                 createdAt: credential.createdAt.toISOString(),
+                canDelete: record.credentials.length > 1,
             })),
+            allowedOrigins: webauthn.origins,
             publicKeyAlgorithm: record.publicKeyAlgorithm,
             publicKey: record.publicKey,
             identityDisclosure: record.identity?.email ? 'profile' : 'subject',
@@ -463,13 +538,14 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
 
     router.patch('/keys/me/credentials/:credentialId', writeLimiter, route(async (req, res) => {
         const userId = getUserId(req);
+        const rpId = requestRpId(req, req.body?.rpId);
         const credentialId = requireBase64(req.params.credentialId, 'credentialId', { min: 1, max: MAX_CREDENTIAL_ID_BYTES });
         if (req.body?.credentialName == null) {
             throw new ZkError(400, 'invalid_payload', 'credentialName is required');
         }
         const credentialName = requireCredentialName(req.body?.credentialName);
         const record = await store.getUserKeysByUserId(userId);
-        if (!record?.credentials.some(item => item.credentialId === credentialId)) {
+        if (!record?.credentials.some(item => item.credentialId === credentialId && credentialMatchesRpId(item.rpId, rpId))) {
             throw new ZkError(404, 'not_found', 'Unknown credential');
         }
 
@@ -479,9 +555,11 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
 
     router.delete('/keys/me/credentials/:credentialId', writeLimiter, route(async (req, res) => {
         const userId = getUserId(req);
+        const rpId = requestRpId(req, req.query.rpId);
         const credentialId = requireBase64(req.params.credentialId, 'credentialId', { min: 1, max: MAX_CREDENTIAL_ID_BYTES });
         const record = await store.getUserKeysByUserId(userId);
-        const credential = record?.credentials.find(item => item.credentialId === credentialId);
+        const credential = record?.credentials.find(item =>
+            item.credentialId === credentialId && credentialMatchesRpId(item.rpId, rpId));
         if (!record || !credential) {
             throw new ZkError(404, 'not_found', 'Unknown credential');
         }
@@ -629,8 +707,8 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
 
         const body = req.body ?? {};
         const memberIds = body.members;
-        if (!Array.isArray(memberIds) || memberIds.length < 2 || memberIds.length > MAX_GROUP_MEMBERS) {
-            throw new ZkError(400, 'invalid_payload', `members must contain 2-${MAX_GROUP_MEMBERS} users`);
+        if (!Array.isArray(memberIds) || memberIds.length < 1 || memberIds.length > MAX_GROUP_MEMBERS) {
+            throw new ZkError(400, 'invalid_payload', `members must contain 1-${MAX_GROUP_MEMBERS} users`);
         }
         const ids = memberIds.map((value, index) => requireId(value, `members[${index}]`));
         if (new Set(ids).size !== ids.length || !ids.includes(userId)) {
@@ -1254,6 +1332,7 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
     router.post('/keys/rotate', writeLimiter, route(async (req, res) => {
         const userId = getUserId(req);
         const body = req.body ?? {};
+        const rpId = requestRpId(req, body.rpId);
         const includeIdentityProfile = requireIdentityProfileDisclosure(body.identityDisclosure);
         const credentialName = requireCredentialName(body.credentialName);
 
@@ -1265,7 +1344,7 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
         const challenge = requireBase64(body.challenge, 'challenge', { min: 1 });
 
         const pending = await store.takeChallenge(challenge);
-        if (!pending || pending.kind !== 'registration') {
+        if (!pending || pending.kind !== 'registration' || pending.rpId !== rpId) {
             throw new ZkError(400, 'invalid_payload', 'Invalid or expired challenge');
         }
 
@@ -1292,6 +1371,7 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
             credentials: [{
                 credentialId,
                 name: credentialName,
+                rpId,
                 credentialPublicKey,
                 encryptedSk,
                 encryptedSkIv,
