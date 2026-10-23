@@ -33,6 +33,20 @@
 
 * add functions to handle forwarded headers for callback URL construction ([2b32afc](https://github.com/fhswf/openai-proxy/commit/2b32afc6e07757f4aeeda31df81fb2eabf72659d))
 
+## [0.34.0](https://github.com/fhswf/openai-proxy/compare/openai-proxy-v0.33.0...openai-proxy-v0.34.0) (2026-10-23)
+
+
+### Features
+
+* add RP ID handling to WebAuthn and update related interfaces and methods ([f615d78](https://github.com/fhswf/openai-proxy/commit/f615d78392672558de7a7152c7d109a3a4bf01ea))
+* add RP ID handling to WebAuthn and update related interfaces and methods ([f5a6f0d](https://github.com/fhswf/openai-proxy/commit/f5a6f0d1d7087bf1a7e5020a6f03f7da40535b1d))
+* enhance WebAuthn RP ID handling and improve credential validation logic ([2ccddd1](https://github.com/fhswf/openai-proxy/commit/2ccddd1bd428aec7b3c238069f8af428b8601d0b))
+
+
+### Bug Fixes
+
+* update WebAuthn RP ID handling and adjust test origins for consistency ([376bf65](https://github.com/fhswf/openai-proxy/commit/376bf6575f75415600d639a1e481bc8b0c97b6eb))
+
 ## [0.33.0](https://github.com/fhswf/openai-proxy/compare/openai-proxy-v0.32.0...openai-proxy-v0.33.0) (2026-10-23)
 
 
