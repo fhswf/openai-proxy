@@ -33,6 +33,16 @@
 
 * add functions to handle forwarded headers for callback URL construction ([2b32afc](https://github.com/fhswf/openai-proxy/commit/2b32afc6e07757f4aeeda31df81fb2eabf72659d))
 
+## [0.32.0](https://github.com/fhswf/openai-proxy/compare/openai-proxy-v0.31.0...openai-proxy-v0.32.0) (2026-10-23)
+
+
+### Features
+
+* add Swagger UI documentation and OpenAPI support ([421922d](https://github.com/fhswf/openai-proxy/commit/421922d32e0fab71fbb43bfee4e341b3423720ae))
+* add Swagger UI documentation and OpenAPI support ([dd3f0f9](https://github.com/fhswf/openai-proxy/commit/dd3f0f9b12f6ec4ee30f6696e4be2aa6eb594a7a))
+* add zk-attestation sealed secret and update deployment configur… ([2afcb61](https://github.com/fhswf/openai-proxy/commit/2afcb61b4da2f856c272bf38c97cebf421479200))
+* add zk-attestation sealed secret and update deployment configuration ([45b6152](https://github.com/fhswf/openai-proxy/commit/45b6152ecc3ab13b9fd031d34427d9297abaaf88))
+
 ## [0.31.0](https://github.com/fhswf/openai-proxy/compare/openai-proxy-v0.30.0...openai-proxy-v0.31.0) (2026-10-22)
 
 
