@@ -33,6 +33,19 @@
 
 * add functions to handle forwarded headers for callback URL construction ([2b32afc](https://github.com/fhswf/openai-proxy/commit/2b32afc6e07757f4aeeda31df81fb2eabf72659d))
 
+## [0.33.0](https://github.com/fhswf/openai-proxy/compare/openai-proxy-v0.32.0...openai-proxy-v0.33.0) (2026-10-23)
+
+
+### Features
+
+* implement group chat functionality with catalog, membership, and event handling ([c36ea64](https://github.com/fhswf/openai-proxy/commit/c36ea640fbd4f91d6aee03adbb811c34b1c6e59e))
+
+
+### Bug Fixes
+
+* enhance API documentation and error handling for user and zero-k… ([fca4986](https://github.com/fhswf/openai-proxy/commit/fca4986d2c797a550f85196f0ba4fc3d71658ff2))
+* enhance API documentation and error handling for user and zero-knowledge vault operations ([8427ac8](https://github.com/fhswf/openai-proxy/commit/8427ac80eebce4f1c304963e1027b0a8bcb1cec8))
+
 ## [0.32.0](https://github.com/fhswf/openai-proxy/compare/openai-proxy-v0.31.0...openai-proxy-v0.32.0) (2026-10-23)
 
 
