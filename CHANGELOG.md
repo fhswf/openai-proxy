@@ -33,6 +33,14 @@
 
 * add functions to handle forwarded headers for callback URL construction ([2b32afc](https://github.com/fhswf/openai-proxy/commit/2b32afc6e07757f4aeeda31df81fb2eabf72659d))
 
+## [0.35.0](https://github.com/fhswf/openai-proxy/compare/openai-proxy-v0.34.0...openai-proxy-v0.35.0) (2026-10-24)
+
+
+### Features
+
+* add user settings management with encrypted storage and syncing capabilities ([cddbab8](https://github.com/fhswf/openai-proxy/commit/cddbab8079f641d645b3f7d9a4b314024920a70c))
+* add user settings management with encrypted storage and syncing… ([e2e07dc](https://github.com/fhswf/openai-proxy/commit/e2e07dc5aa3c78492801e502c8a944fe0e47f717))
+
 ## [0.34.0](https://github.com/fhswf/openai-proxy/compare/openai-proxy-v0.33.0...openai-proxy-v0.34.0) (2026-10-23)
 
 
