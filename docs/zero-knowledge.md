@@ -39,7 +39,7 @@ are streamed through GridFS.
 | POST | `/api/zk/keys/assertion` | Verify `{credentialId, challenge, authenticatorData, clientDataJSON, signature}`; unlocks `encryptedSk` |
 | GET | `/api/zk/keys/me?rpId={hostname}` | Return only the caller's passkeys valid for this client domain, plus the shared public key and identity attestation (a passkey's wrapped `encryptedSk` only after a fresh assertion) |
 | PATCH | `/api/zk/keys/me/identity-disclosure` | Choose whether verified profile claims, including email, are discoverable for chat sharing |
-| DELETE | `/api/zk/keys/me` | Remove the caller's keys; encrypted chat records remain inaccessible |
+| DELETE | `/api/zk/keys/me` | Remove the caller's keys and synced settings; encrypted chat records remain inaccessible |
 | PATCH | `/api/zk/keys/me/credentials/{credentialId}` | Rename one of the caller's passkeys |
 | DELETE | `/api/zk/keys/me/credentials/{credentialId}` | Remove one passkey, leaving the user's key and other passkeys in place |
 | GET | `/api/zk/keys/attestation-jwks` | Return the proxy's public verification key |
@@ -48,6 +48,8 @@ are streamed through GridFS.
 | POST | `/api/zk/keys/rotate` | Re-wrap `SK_user` under a new passkey/credential; may also update identity disclosure |
 | GET | `/api/zk/group-catalog` | Fetch the caller's encrypted saved-group roster catalog and self-envelope |
 | PUT | `/api/zk/group-catalog` | Create or update the encrypted saved-group roster catalog (`baseRev` for optimistic locking) |
+| GET | `/api/zk/settings` | Fetch the caller's encrypted settings document and self-envelope |
+| PUT | `/api/zk/settings` | Create or update encrypted settings (`baseRev` for optimistic locking) |
 | GET | `/api/zk/chats` | List chats visible to the caller (no ciphertext) |
 | GET | `/api/zk/chats/{id}` | Fetch a chat and its available key envelopes (group chats return only the caller's) |
 | PUT | `/api/zk/chats/{id}` | Create or update a chat (`baseRev` for optimistic locking) |

@@ -15,6 +15,7 @@ const ASSERTION_TTL_MS = 15 * 60 * 1000;
 
 const MAX_CIPHERTEXT_BYTES = 5 * 1024 * 1024;
 const MAX_GROUP_CATALOG_BYTES = 2 * 1024 * 1024;
+const MAX_USER_SETTINGS_BYTES = 2 * 1024 * 1024;
 const MAX_GROUP_EVENT_BYTES = 256 * 1024;
 const MAX_ATTACHMENT_BYTES = 100 * 1024 * 1024;
 const MAX_METADATA_BYTES = 64 * 1024;
@@ -694,6 +695,69 @@ export function createZkRouter(options: ZkRouterOptions): express.Router {
             return;
         }
         const saved = await store.getGroupCatalog(userId);
+        res.status(result === 'created' ? 201 : 200).json({ rev: saved?.rev ?? 1 });
+    }));
+
+    router.get('/settings', route(async (req, res) => {
+        const userId = getUserId(req);
+        const settings = await store.getUserSettings(userId);
+        if (!settings) throw new ZkError(404, 'not_found', 'No synced settings');
+        res.json({
+            ciphertext: settings.ciphertext,
+            iv: settings.iv,
+            selfEnvelope: {
+                recipientId: userId,
+                envelopeAlgorithm: settings.envelope.envelope_algorithm,
+                ephemeralPublicKey: settings.envelope.ephemeral_public_key,
+                wrappedKey: settings.envelope.wrapped_key,
+                wrappedKeyIv: settings.envelope.wrapped_key_iv,
+            },
+            rev: settings.rev,
+            updatedAt: settings.updatedAt.toISOString(),
+        });
+    }));
+
+    router.put('/settings', writeLimiter, route(async (req, res) => {
+        const userId = getUserId(req);
+        const userKeys = await store.getUserKeysByUserId(userId);
+        if (!userKeys) throw new ZkError(403, 'forbidden', 'Encrypted chat storage is not enabled');
+
+        const body = req.body ?? {};
+        const ciphertext = requireBase64(body.ciphertext, 'ciphertext', { min: 1, max: MAX_USER_SETTINGS_BYTES });
+        const iv = requireBase64(body.iv, 'iv', { min: 12, max: 12 });
+        if (!body.selfEnvelope || typeof body.selfEnvelope !== 'object') {
+            throw new ZkError(400, 'invalid_payload', 'selfEnvelope is required');
+        }
+        if (body.selfEnvelope.recipientId !== userId) {
+            throw new ZkError(400, 'invalid_payload', 'selfEnvelope recipientId must match the caller');
+        }
+        const envelope = requireEnvelope(body.selfEnvelope, 'selfEnvelope');
+        if (envelope.envelopeAlgorithm !== envelopeAlgorithmForKey(userKeys.publicKeyAlgorithm)) {
+            throw new ZkError(400, 'invalid_payload', 'selfEnvelope algorithm does not match the registered public key');
+        }
+        const baseRev = body.baseRev == null ? null : Number(body.baseRev);
+        if (baseRev != null && (!Number.isSafeInteger(baseRev) || baseRev < 0)) {
+            throw new ZkError(400, 'invalid_payload', 'baseRev must be a non-negative integer');
+        }
+
+        const result = await store.putUserSettings({
+            userId,
+            ciphertext,
+            iv,
+            envelope: {
+                envelope_algorithm: envelope.envelopeAlgorithm,
+                ephemeral_public_key: envelope.ephemeralPublicKey,
+                wrapped_key: envelope.wrappedKey,
+                wrapped_key_iv: envelope.wrappedKeyIv,
+            },
+            rev: 0,
+            updatedAt: now(),
+        }, baseRev);
+        if (result === 'conflict') {
+            res.status(409).json({ error: { code: 'conflict', message: 'Settings changed on another device' } });
+            return;
+        }
+        const saved = await store.getUserSettings(userId);
         res.status(result === 'created' ? 201 : 200).json({ rev: saved?.rev ?? 1 });
     }));
 

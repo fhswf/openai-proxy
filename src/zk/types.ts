@@ -94,6 +94,16 @@ export interface GroupCatalogRecord {
     updatedAt: Date;
 }
 
+/** Per-user encrypted settings synced between devices. */
+export interface UserSettingsRecord {
+    userId: string;
+    ciphertext: string;
+    iv: string;
+    envelope: GroupCatalogEnvelope;
+    rev: number;
+    updatedAt: Date;
+}
+
 export type GroupChatRole = 'owner' | 'member';
 
 export interface GroupChatMemberRecord {
@@ -219,6 +229,9 @@ export interface ZkStore {
 
     getGroupCatalog(userId: string): Promise<GroupCatalogRecord | null>;
     putGroupCatalog(record: GroupCatalogRecord, baseRev?: number | null): Promise<'created' | 'updated' | 'conflict'>;
+
+    getUserSettings(userId: string): Promise<UserSettingsRecord | null>;
+    putUserSettings(record: UserSettingsRecord, baseRev?: number | null): Promise<'created' | 'updated' | 'conflict'>;
 
     getGroupChat(chatId: string): Promise<GroupChatRecord | null>;
     createGroupChat(record: GroupChatRecord): Promise<'created' | 'exists' | 'not_found' | 'forbidden'>;
